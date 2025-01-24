@@ -1,6 +1,7 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const Usuario = require("../models/Usuario");
+const auth = require("../middleware/auth");
 
 const router = express.Router();
 
@@ -92,6 +93,20 @@ router.get("/", async (req, res) => {
     res.status(200).json(usuarios);
   } catch (error) {
     console.error("Error al obtener usuarios:", error.message);
+    res.status(500).json({ message: "Error interno del servidor" });
+  }
+});
+
+// Obtener información del usuario autenticado
+router.get("/me", auth, async (req, res) => {
+  try {
+    const usuario = await Usuario.findById(req.user.id).select("-password"); // Excluir la contraseña
+    if (!usuario) {
+      return res.status(404).json({ message: "Usuario no encontrado" });
+    }
+    res.status(200).json(usuario);
+  } catch (error) {
+    console.error("Error al obtener el usuario:", error.message);
     res.status(500).json({ message: "Error interno del servidor" });
   }
 });
