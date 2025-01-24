@@ -32,6 +32,7 @@ router.post("/", async (req, res) => {
       !phoneCode ||
       !phoneArea ||
       !phoneNumber ||
+      !dni ||
       !password
     ) {
       return res
@@ -39,10 +40,15 @@ router.post("/", async (req, res) => {
         .json({ message: "Todos los campos obligatorios deben completarse" });
     }
 
-    // Verificar si el usuario ya existe
-    const usuarioExistente = await Usuario.findOne({ email });
+    // Verificar si el usuario ya existe por correo o DNI
+    const usuarioExistente = await Usuario.findOne({
+      $or: [{ email }, { dni }],
+    });
     if (usuarioExistente) {
-      return res.status(400).json({ message: "El correo ya está registrado" });
+      return res.status(400).json({
+        message:
+          "El correo electrónico o el DNI ya están registrados en el sistema.",
+      });
     }
 
     // Encriptar contraseña
@@ -68,8 +74,10 @@ router.post("/", async (req, res) => {
       password: hashedPassword,
     });
 
+    // Guardar usuario en la base de datos
     await nuevoUsuario.save();
 
+    // Respuesta exitosa
     res.status(201).json({ message: "Usuario registrado con éxito" });
   } catch (error) {
     console.error("Error al registrar usuario:", error.message);
