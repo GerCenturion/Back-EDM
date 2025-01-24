@@ -4,6 +4,8 @@ const dotenv = require("dotenv");
 const cors = require("cors");
 const usuariosRoutes = require("./routes/usuarios"); // Ruta unificada para usuarios
 const loginRoutes = require("./routes/login");
+const createDefaultAdmin = require("./createDefaultAdmin");
+const adminRoutes = require("./routes/admin");
 dotenv.config();
 
 const app = express();
@@ -29,6 +31,10 @@ app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ message: "Error interno del servidor" });
 });
+
+createDefaultAdmin();
+
+app.use("/api/admin", adminRoutes);
 
 // Puerto del servidor
 const PORT = process.env.PORT || 5000;

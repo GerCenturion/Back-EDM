@@ -31,12 +31,16 @@ router.post("/", async (req, res) => {
 
     // Generar un token JWT
     const token = jwt.sign(
-      { id: usuario._id, dni: usuario.dni },
+      {
+        id: usuario._id,
+        dni: usuario.dni,
+        role: usuario.role, // Incluye el rol del usuario en el token
+      },
       process.env.JWT_SECRET, // Clave secreta almacenada en .env
       { expiresIn: "1h" } // El token expira en 1 hora
     );
 
-    // Responder con el token
+    // Responder con el token y la información del usuario
     res.status(200).json({
       message: "Inicio de sesión exitoso",
       token,
@@ -45,6 +49,7 @@ router.post("/", async (req, res) => {
         name: usuario.name,
         email: usuario.email,
         dni: usuario.dni,
+        role: usuario.role, // Incluye el rol del usuario
       },
     });
   } catch (error) {

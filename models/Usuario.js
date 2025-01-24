@@ -12,23 +12,33 @@ const UsuarioSchema = new mongoose.Schema({
   },
   phoneCode: {
     type: String,
-    required: [true, "El código de país es obligatorio"],
+    required: function () {
+      return !this.isDefaultAdmin;
+    },
   },
   phoneArea: {
     type: String,
-    required: [true, "El código de área es obligatorio"],
+    required: function () {
+      return !this.isDefaultAdmin;
+    },
   },
   phoneNumber: {
     type: String,
-    required: [true, "El número de teléfono es obligatorio"],
+    required: function () {
+      return !this.isDefaultAdmin;
+    },
   },
   phoneType: {
     type: String,
-    required: [true, "El tipo de teléfono es obligatorio"],
+    required: function () {
+      return !this.isDefaultAdmin;
+    },
   },
   birthdate: {
     type: Date,
-    required: [true, "La fecha de nacimiento es obligatoria"],
+    required: function () {
+      return !this.isDefaultAdmin;
+    },
   },
   dni: {
     type: String,
@@ -37,19 +47,27 @@ const UsuarioSchema = new mongoose.Schema({
   },
   address: {
     type: String,
-    required: [true, "La dirección es obligatoria"],
+    required: function () {
+      return !this.isDefaultAdmin;
+    },
   },
   civilStatus: {
     type: String,
-    required: [true, "El estado civil es obligatorio"],
+    required: function () {
+      return !this.isDefaultAdmin;
+    },
   },
   profession: {
     type: String,
-    required: [true, "La profesión es obligatoria"],
+    required: function () {
+      return !this.isDefaultAdmin;
+    },
   },
   church: {
     type: String,
-    required: [true, "El nombre de la iglesia es obligatorio"],
+    required: function () {
+      return !this.isDefaultAdmin;
+    },
   },
   ministerialRole: {
     type: String,
@@ -57,11 +75,22 @@ const UsuarioSchema = new mongoose.Schema({
   },
   reason: {
     type: String,
-    required: [true, "La razón para inscribirse es obligatoria"],
+    required: function () {
+      return !this.isDefaultAdmin;
+    },
   },
   password: {
     type: String,
     required: [true, "La contraseña es obligatoria"],
+  },
+  role: {
+    type: String,
+    enum: ["admin", "profesor", "alumno"],
+    default: "alumno",
+  },
+  isDefaultAdmin: {
+    type: Boolean,
+    default: false,
   },
   createdAt: {
     type: Date,
