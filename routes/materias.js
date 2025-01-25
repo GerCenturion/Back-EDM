@@ -276,4 +276,47 @@ router.get("/:id/estado-inscripcion", authenticate, async (req, res) => {
   }
 });
 
+router.put(
+  "/gestionar-inscripcion/:materiaId",
+  authenticate,
+  authorize(["profesor", "admin"]),
+  async (req, res) => {
+    try {
+      const { alumnoId, status } = req.body;
+      if (!["Pendiente", "Aceptado", "Rechazado"].includes(status)) {
+        return res
+          .status(400)
+          .json({
+            message: "Estado no válido: Pendiente, Aceptado o Rechazado",
+          });
+      }
+
+      const materia = await Materia.findById(req.params.materiaId);
+      if (!materia) {
+        return res.status(404).json({ message: "Materia no encontrada" });
+      }
+
+      const student = materia.students.find(
+        (student) => student.student.toString() === alumnoId
+      );
+      if (!student) {
+        return res
+          .status(404)
+          .json({ message: "Solicitud de inscripción no encontrada" });
+      }
+
+      student.status = status;
+      await materia.save();
+
+      res.status(200).json({
+        message: `Solicitud de inscripción ${status.toLowerCase()} con éxito`,
+        materia,
+      });
+    } catch (error) {
+      console.error("Error al gestionar inscripción:", error.message);
+      res.status(500).json({ message: "Error interno del servidor" });
+    }
+  }
+);
+
 module.exports = router;
