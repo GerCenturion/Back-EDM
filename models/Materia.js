@@ -4,7 +4,7 @@ const MateriaSchema = new mongoose.Schema({
   name: {
     type: String,
     required: [true, "El nombre de la materia es obligatorio"],
-    trim: true, // Elimina espacios innecesarios
+    trim: true, // Elimina espacios innecesarios al principio y al final
     unique: true, // Asegura que no se repita el nombre
   },
   level: {
@@ -26,6 +26,7 @@ const MateriaSchema = new mongoose.Schema({
       student: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Usuario",
+        required: true, // Asegura que siempre se almacene un ID de estudiante válido
       },
       status: {
         type: String,
@@ -46,11 +47,33 @@ const MateriaSchema = new mongoose.Schema({
 
 // Middleware para actualizar `updatedAt` antes de guardar
 MateriaSchema.pre("save", function (next) {
-  this.updatedAt = Date.now();
+  if (this.isModified()) {
+    this.updatedAt = Date.now();
+  }
   next();
 });
 
-// Índice compuesto para búsqueda más rápida
+// Índice compuesto para búsqueda más eficiente y evitar duplicados
 MateriaSchema.index({ name: 1, level: 1 }, { unique: true });
+
+// Manejo de errores de índices únicos
+MateriaSchema.post("save", function (error, doc, next) {
+  if (error.name === "MongoServerError" && error.code === 11000) {
+    next(new Error("Ya existe una materia con el mismo nombre y nivel."));
+  } else {
+    next(error);
+  }
+});
+
+// Middleware para eliminar estudiantes automáticamente si una materia es eliminada
+MateriaSchema.pre("remove", async function (next) {
+  try {
+    // Ejemplo: puedes implementar notificaciones a los estudiantes aquí
+    console.log(`Materia ${this.name} eliminada. Procesar notificaciones.`);
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
 
 module.exports = mongoose.model("Materia", MateriaSchema);

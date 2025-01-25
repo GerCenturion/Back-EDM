@@ -212,4 +212,68 @@ router.delete("/:id", authenticate, authorize(["admin"]), async (req, res) => {
   }
 });
 
+// Ruta para solicitar inscripción
+router.post("/solicitar-inscripcion/:id", authenticate, async (req, res) => {
+  try {
+    const materia = await Materia.findById(req.params.id);
+
+    if (!materia) {
+      return res.status(404).json({ message: "Materia no encontrada" });
+    }
+
+    // Verificar si la inscripción está habilitada
+    if (!materia.isEnrollmentOpen) {
+      return res.status(403).json({
+        message: "La inscripción para esta materia no está habilitada",
+      });
+    }
+
+    // Verificar si el estudiante ya solicitó inscripción
+    const alreadyRequested = materia.students.some(
+      (student) => student.student.toString() === req.user.id
+    );
+
+    if (alreadyRequested) {
+      return res
+        .status(400)
+        .json({ message: "Ya has solicitado inscripción en esta materia" });
+    }
+
+    materia.students.push({ student: req.user.id, status: "Pendiente" });
+    await materia.save();
+
+    res.status(200).json({
+      message: "Solicitud de inscripción enviada con éxito.",
+      materia,
+    });
+  } catch (error) {
+    console.error("Error al solicitar inscripción:", error.message);
+    res.status(500).json({ message: "Error interno del servidor" });
+  }
+});
+
+// Ruta para verificar el estado de inscripción
+router.get("/:id/estado-inscripcion", authenticate, async (req, res) => {
+  try {
+    const materia = await Materia.findById(req.params.id);
+
+    if (!materia) {
+      return res.status(404).json({ message: "Materia no encontrada" });
+    }
+
+    const student = materia.students.find(
+      (s) => s.student.toString() === req.user.id
+    );
+
+    if (!student) {
+      return res.status(200).json({ status: null }); // No inscrito
+    }
+
+    res.status(200).json({ status: student.status });
+  } catch (error) {
+    console.error("Error al verificar estado de inscripción:", error.message);
+    res.status(500).json({ message: "Error interno del servidor" });
+  }
+});
+
 module.exports = router;
