@@ -153,4 +153,43 @@ router.put(
   }
 );
 
+// Ruta para asignar un profesor a una materia (solo admin)
+router.put(
+  "/asignar-profesor/:id",
+  authenticate,
+  authorize(["admin"]),
+  async (req, res) => {
+    try {
+      const { profesorId } = req.body;
+
+      const materia = await Materia.findById(req.params.id);
+      if (!materia) {
+        return res.status(404).json({ message: "Materia no encontrada" });
+      }
+
+      const profesor = await Usuario.findById(profesorId);
+      if (!profesor) {
+        return res.status(404).json({ message: "Usuario no encontrado" });
+      }
+
+      // Si el usuario no es admin, se asegura de que tenga el rol de profesor
+      if (profesor.role !== "admin" && profesor.role !== "profesor") {
+        profesor.role = "profesor";
+        await profesor.save();
+      }
+
+      materia.professor = profesorId;
+      await materia.save();
+
+      res.status(200).json({
+        message: `Profesor ${profesor.name} asignado a la materia ${materia.name} con éxito`,
+        materia,
+      });
+    } catch (error) {
+      console.error("Error al asignar profesor:", error.message);
+      res.status(500).json({ message: "Error interno del servidor" });
+    }
+  }
+);
+
 module.exports = router;
