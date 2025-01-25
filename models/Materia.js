@@ -3,12 +3,12 @@ const mongoose = require("mongoose");
 const MateriaSchema = new mongoose.Schema({
   name: {
     type: String,
-    required: true,
+    required: [true, "El nombre de la materia es obligatorio"],
   },
   level: {
     type: String,
     enum: ["Elemental", "Avanzado 1", "Avanzado 2", "Avanzado 3"],
-    required: true,
+    required: [true, "El nivel de la materia es obligatorio"],
   },
   isEnrollmentOpen: {
     type: Boolean,
