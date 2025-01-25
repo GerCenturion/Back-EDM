@@ -2,10 +2,13 @@ const express = require("express");
 const connectDB = require("./config/db");
 const dotenv = require("dotenv");
 const cors = require("cors");
-const usuariosRoutes = require("./routes/usuarios"); // Ruta unificada para usuarios
+const usuariosRoutes = require("./routes/usuarios");
 const loginRoutes = require("./routes/login");
 const createDefaultAdmin = require("./createDefaultAdmin");
 const adminRoutes = require("./routes/admin");
+const materiasRoutes = require("./routes/materias");
+const crearMateriasDefault = require("./config/materiasDefault");
+
 dotenv.config();
 
 const app = express();
@@ -20,6 +23,7 @@ app.use(express.json());
 // Rutas
 app.use("/api/usuarios", usuariosRoutes);
 app.use("/api/login", loginRoutes);
+app.use("/api/materias", materiasRoutes);
 
 // Ruta inicial
 app.get("/", (req, res) => {
@@ -33,6 +37,7 @@ app.use((err, req, res, next) => {
 });
 
 createDefaultAdmin();
+crearMateriasDefault();
 
 app.use("/api/admin", adminRoutes);
 

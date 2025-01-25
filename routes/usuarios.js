@@ -1,7 +1,7 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const Usuario = require("../models/Usuario");
-const auth = require("../middleware/auth");
+const { authenticate, authorize } = require("../middleware/authenticate");
 
 const router = express.Router();
 
@@ -86,8 +86,8 @@ router.post("/", async (req, res) => {
   }
 });
 
-// Obtener todos los usuarios
-router.get("/", async (req, res) => {
+// Obtener todos los usuarios (Solo admin)
+router.get("/", authenticate, authorize(["admin"]), async (req, res) => {
   try {
     const usuarios = await Usuario.find();
     res.status(200).json(usuarios);
@@ -97,8 +97,15 @@ router.get("/", async (req, res) => {
   }
 });
 
+// Ruta de prueba para administradores
+router.get("/admin", authenticate, authorize(["admin"]), (req, res) => {
+  res.status(200).json({
+    message: "Ruta solo para administradores funcionando correctamente",
+  });
+});
+
 // Obtener información del usuario autenticado
-router.get("/me", auth, async (req, res) => {
+router.get("/me", authenticate, async (req, res) => {
   try {
     const usuario = await Usuario.findById(req.user.id).select("-password"); // Excluir la contraseña
     if (!usuario) {
