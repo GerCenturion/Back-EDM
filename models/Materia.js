@@ -4,6 +4,8 @@ const MateriaSchema = new mongoose.Schema({
   name: {
     type: String,
     required: [true, "El nombre de la materia es obligatorio"],
+    trim: true, // Elimina espacios innecesarios
+    unique: true, // Asegura que no se repita el nombre
   },
   level: {
     type: String,
@@ -32,10 +34,23 @@ const MateriaSchema = new mongoose.Schema({
       },
     },
   ],
+  updatedAt: {
+    type: Date,
+    default: Date.now, // Fecha de la última modificación
+  },
   createdAt: {
     type: Date,
-    default: Date.now,
+    default: Date.now, // Fecha de creación
   },
 });
+
+// Middleware para actualizar `updatedAt` antes de guardar
+MateriaSchema.pre("save", function (next) {
+  this.updatedAt = Date.now();
+  next();
+});
+
+// Índice compuesto para búsqueda más rápida
+MateriaSchema.index({ name: 1, level: 1 }, { unique: true });
 
 module.exports = mongoose.model("Materia", MateriaSchema);

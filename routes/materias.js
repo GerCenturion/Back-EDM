@@ -192,4 +192,24 @@ router.put(
   }
 );
 
+// Ruta para eliminar una materia
+router.delete("/:id", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    const materia = await Materia.findById(req.params.id);
+
+    if (!materia) {
+      return res.status(404).json({ message: "Materia no encontrada." });
+    }
+
+    await materia.deleteOne();
+
+    res
+      .status(200)
+      .json({ message: `Materia "${materia.name}" eliminada con éxito.` });
+  } catch (error) {
+    console.error("Error al eliminar materia:", error.message);
+    res.status(500).json({ message: "Error interno del servidor." });
+  }
+});
+
 module.exports = router;
