@@ -2,11 +2,14 @@ const express = require("express");
 const connectDB = require("./config/db");
 const dotenv = require("dotenv");
 const cors = require("cors");
+const path = require("path");
+
 const usuariosRoutes = require("./routes/usuarios");
 const loginRoutes = require("./routes/login");
 const createDefaultAdmin = require("./createDefaultAdmin");
 const adminRoutes = require("./routes/admin");
 const materiasRoutes = require("./routes/materias");
+const uploadRoutes = require("./routes/uploadRoutes"); // Ruta para subir archivos
 const crearMateriasDefault = require("./config/materiasDefault");
 
 dotenv.config();
@@ -24,6 +27,7 @@ app.use(express.json());
 app.use("/api/usuarios", usuariosRoutes);
 app.use("/api/login", loginRoutes);
 app.use("/api/materias", materiasRoutes);
+app.use("/api/uploads", uploadRoutes); // Ruta para subir archivos
 
 // Ruta inicial
 app.get("/", (req, res) => {
