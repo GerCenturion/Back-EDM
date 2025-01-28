@@ -76,4 +76,62 @@ router.post("/upload/:materiaId", upload.single("file"), async (req, res) => {
   }
 });
 
+router.post("/:materiaId/classes", upload.array("files"), async (req, res) => {
+  try {
+    const { materiaId } = req.params;
+    const { title, description, videoUrl } = req.body;
+
+    // Validar que la materia exista
+    const materia = await Materia.findById(materiaId);
+    if (!materia) {
+      return res.status(404).json({ message: "Materia no encontrada" });
+    }
+
+    // Subir los archivos al espacio de DigitalOcean
+    const uploadedFiles = [];
+    for (const file of req.files) {
+      const fileKey = `${uuidv4()}-${file.originalname}`;
+      const uploadParams = {
+        Bucket: "escuela-de-misiones",
+        Key: fileKey,
+        Body: file.buffer,
+        ContentType: file.mimetype,
+        ACL: "public-read",
+      };
+
+      const command = new PutObjectCommand(uploadParams);
+      await s3.send(command);
+
+      const fileUrl = `https://${uploadParams.Bucket}.nyc3.digitaloceanspaces.com/${fileKey}`;
+      uploadedFiles.push({
+        fileName: file.originalname,
+        fileUrl,
+        uploadDate: new Date(),
+      });
+    }
+
+    // Crear la nueva clase
+    const newClass = {
+      title,
+      description,
+      videoUrl,
+      files: uploadedFiles,
+      createdAt: new Date(),
+    };
+
+    materia.classes.push(newClass);
+    await materia.save();
+
+    res.status(201).json({
+      message: "Clase creada exitosamente",
+      newClass,
+    });
+  } catch (error) {
+    console.error("Error al crear clase:", error);
+    res
+      .status(500)
+      .json({ message: "Error al crear clase", error: error.message });
+  }
+});
+
 module.exports = router;
