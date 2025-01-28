@@ -1,17 +1,19 @@
 const express = require("express");
 const multer = require("multer");
 const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
-const router = express.Router();
 const { v4: uuidv4 } = require("uuid");
+const Materia = require("../models/Materia"); // Modelo de Materia
 require("dotenv").config(); // Asegúrate de cargar las variables de entorno
+
+const router = express.Router();
 
 // Configuración del cliente S3 para DigitalOcean Spaces
 const s3 = new S3Client({
   region: "nyc3",
   endpoint: "https://nyc3.digitaloceanspaces.com",
   credentials: {
-    accessKeyId: "DO00MRU9HK9JATVB6UJ3", // Llave de acceso desde el archivo .env
-    secretAccessKey: "XPJMSKDK43dz9SCqEJWqNm71bClpf61523TS6nBqZDU", // Llave secreta desde el archivo .env
+    accessKeyId: process.env.SPACES_KEY, // Llave de acceso desde el archivo .env
+    secretAccessKey: process.env.SPACES_SECRET, // Llave secreta desde el archivo .env
   },
 });
 
@@ -19,9 +21,11 @@ const s3 = new S3Client({
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-// Ruta para subir un archivo
-router.post("/upload", upload.single("file"), async (req, res) => {
+// Ruta para subir un archivo y vincularlo a una materia
+router.post("/upload/:materiaId", upload.single("file"), async (req, res) => {
   try {
+    const { materiaId } = req.params;
+
     // Validar que se haya enviado un archivo
     if (!req.file) {
       return res.status(400).json({ message: "No se proporcionó un archivo." });
@@ -39,14 +43,28 @@ router.post("/upload", upload.single("file"), async (req, res) => {
 
     // Subir el archivo al Space usando PutObjectCommand
     const command = new PutObjectCommand(uploadParams);
-    const result = await s3.send(command);
+    await s3.send(command);
 
     // Construir la URL del archivo subido
     const fileUrl = `https://${uploadParams.Bucket}.nyc3.digitaloceanspaces.com/${fileKey}`;
 
+    // Buscar la materia por ID y agregar el archivo al campo files
+    const materia = await Materia.findById(materiaId);
+    if (!materia) {
+      return res.status(404).json({ message: "Materia no encontrada." });
+    }
+
+    materia.files.push({
+      fileName: req.file.originalname,
+      fileUrl,
+      uploadDate: new Date(),
+    });
+
+    await materia.save();
+
     // Devolver la URL del archivo subido
     return res.status(200).json({
-      message: "Archivo subido con éxito",
+      message: "Archivo subido y vinculado con la materia con éxito",
       fileUrl,
     });
   } catch (error) {

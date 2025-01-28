@@ -35,6 +35,22 @@ const MateriaSchema = new mongoose.Schema({
       },
     },
   ],
+  files: [
+    {
+      fileName: {
+        type: String,
+        required: true,
+      },
+      fileUrl: {
+        type: String,
+        required: true,
+      },
+      uploadDate: {
+        type: Date,
+        default: Date.now, // Fecha de la subida
+      },
+    },
+  ],
   updatedAt: {
     type: Date,
     default: Date.now, // Fecha de la última modificación
