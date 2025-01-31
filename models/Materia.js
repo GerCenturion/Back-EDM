@@ -100,6 +100,12 @@ const MateriaSchema = new mongoose.Schema({
       uploadDate: Date,
     },
   ],
+  videos: [
+    {
+      url: { type: String, required: true },
+      title: { type: String, required: true },
+    },
+  ],
   classes: [
     {
       title: { type: String, required: true },
