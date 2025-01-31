@@ -318,5 +318,67 @@ router.put(
     }
   }
 );
+// Agregar un video a una materia
+router.post(
+  "/:id/agregar-video",
+  authenticate,
+  authorize(["admin", "profesor"]),
+  async (req, res) => {
+    try {
+      const { url, title } = req.body;
+      if (!url || !title) {
+        return res
+          .status(400)
+          .json({ message: "Se requieren la URL y el título del video." });
+      }
+
+      const materia = await Materia.findById(req.params.id);
+      if (!materia) {
+        return res.status(404).json({ message: "Materia no encontrada." });
+      }
+
+      materia.videos.push({ url, title });
+      await materia.save();
+
+      res.status(200).json({ message: "Video agregado con éxito", materia });
+    } catch (error) {
+      console.error("Error al agregar video:", error);
+      res.status(500).json({ message: "Error interno del servidor" });
+    }
+  }
+);
+
+// Eliminar un video de una materia
+router.delete(
+  "/:id/eliminar-video",
+  authenticate,
+  authorize(["admin", "profesor"]),
+  async (req, res) => {
+    try {
+      const { url } = req.body;
+      const materia = await Materia.findById(req.params.id);
+
+      if (!materia) {
+        return res.status(404).json({ message: "Materia no encontrada." });
+      }
+
+      const newVideos = materia.videos.filter((video) => video.url !== url);
+
+      if (newVideos.length === materia.videos.length) {
+        return res
+          .status(404)
+          .json({ message: "Video no encontrado en la materia." });
+      }
+
+      materia.videos = newVideos;
+      await materia.save();
+
+      res.status(200).json({ message: "Video eliminado con éxito", materia });
+    } catch (error) {
+      console.error("Error al eliminar video:", error);
+      res.status(500).json({ message: "Error interno del servidor" });
+    }
+  }
+);
 
 module.exports = router;
