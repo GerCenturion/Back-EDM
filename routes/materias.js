@@ -1,3 +1,5 @@
+//materia.js
+
 const express = require("express");
 const { authenticate, authorize } = require("../middleware/authenticate");
 const Materia = require("../models/Materia");
@@ -284,11 +286,9 @@ router.put(
     try {
       const { alumnoId, status } = req.body;
       if (!["Pendiente", "Aceptado", "Rechazado"].includes(status)) {
-        return res
-          .status(400)
-          .json({
-            message: "Estado no válido: Pendiente, Aceptado o Rechazado",
-          });
+        return res.status(400).json({
+          message: "Estado no válido: Pendiente, Aceptado o Rechazado",
+        });
       }
 
       const materia = await Materia.findById(req.params.materiaId);
