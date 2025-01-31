@@ -121,6 +121,12 @@ const MateriaSchema = new mongoose.Schema({
       createdAt: { type: Date, default: Date.now },
     },
   ],
+  examenes: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Examen",
+    },
+  ],
   updatedAt: {
     type: Date,
     default: Date.now,
