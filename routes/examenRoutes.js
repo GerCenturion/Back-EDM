@@ -5,28 +5,31 @@ const Materia = require("../models/Materia");
 
 const router = express.Router();
 
-// 📌 Crear un examen y asociarlo a una materia (Profesor)
+// 📌 Crear un examen y asociarlo a una materia
 router.post(
   "/crear",
   authenticate,
   authorize(["profesor", "admin"]),
   async (req, res) => {
     try {
-      const { materia, preguntas } = req.body;
+      const { titulo, materia, preguntas } = req.body;
 
-      if (!materia || !preguntas || preguntas.length === 0) {
+      if (!titulo || !materia || !preguntas || preguntas.length === 0) {
         return res
           .status(400)
-          .json({ message: "Materia y preguntas son requeridas" });
+          .json({
+            message: "El título, la materia y las preguntas son requeridas",
+          });
       }
 
-      const nuevaExamen = new Examen({
+      const nuevoExamen = new Examen({
+        titulo,
         materia,
         profesor: req.user.id,
         preguntas,
       });
 
-      const examenGuardado = await nuevaExamen.save();
+      const examenGuardado = await nuevoExamen.save();
 
       // Asociar el examen a la materia
       await Materia.findByIdAndUpdate(materia, {

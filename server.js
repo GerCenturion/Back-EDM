@@ -35,7 +35,7 @@ app.use("/api/usuarios", usuariosRoutes);
 app.use("/api/login", loginRoutes);
 app.use("/api/materias", materiasRoutes);
 app.use("/api/uploads", uploadRoutes);
-app.use("/api/examens", examenRoutes);
+app.use("/api/examenes", examenRoutes);
 
 // Ruta inicial
 app.get("/", (req, res) => {
