@@ -154,4 +154,30 @@ router.post(
   }
 );
 
+// 📌 Verificar si un alumno ya ha completado un examen
+router.get(
+  "/:examenId/completado",
+  authenticate,
+  authorize(["alumno"]),
+  async (req, res) => {
+    try {
+      const examen = await Examen.findById(req.params.examenId);
+
+      if (!examen) {
+        return res.status(404).json({ message: "Examen no encontrado" });
+      }
+
+      // Verificar si el alumno ya respondió este examen
+      const yaRespondido = examen.respuestas.some(
+        (resp) => resp.alumno.toString() === req.user.id
+      );
+
+      res.status(200).json({ yaRespondido });
+    } catch (error) {
+      console.error("Error al verificar si el examen fue completado:", error);
+      res.status(500).json({ message: "Error interno del servidor" });
+    }
+  }
+);
+
 module.exports = router;
