@@ -20,6 +20,24 @@ router.post(
         });
       }
 
+      // Validamos preguntas
+      preguntas.forEach((pregunta) => {
+        if (!["multiple-choice", "desarrollo"].includes(pregunta.tipo)) {
+          throw new Error(
+            "El tipo de pregunta debe ser 'multiple-choice' o 'desarrollo'"
+          );
+        }
+
+        if (
+          pregunta.tipo === "multiple-choice" &&
+          (!pregunta.opciones || pregunta.opciones.length === 0)
+        ) {
+          throw new Error(
+            "Las preguntas de selección múltiple deben tener opciones."
+          );
+        }
+      });
+
       const nuevoExamen = new Examen({
         titulo,
         materia,
@@ -29,7 +47,6 @@ router.post(
 
       const examenGuardado = await nuevoExamen.save();
 
-      // Asociar el examen a la materia
       await Materia.findByIdAndUpdate(materia, {
         $push: { examenes: examenGuardado._id },
       });
