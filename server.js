@@ -17,6 +17,13 @@ dotenv.config();
 
 const app = express();
 
+app.use(
+  cors({
+    origin: "http://localhost:5173", // Permitir solo este frontend
+    credentials: true, // Importante para las sesiones y cookies
+  })
+);
+
 // Validar configuración
 if (!process.env.SPACES_KEY || !process.env.SPACES_SECRET) {
   console.error("Error: Falta configurar las variables de entorno para Spaces");

@@ -317,4 +317,42 @@ router.get(
   }
 );
 
+router.get("/:examenId/estado/:alumnoId", authenticate, async (req, res) => {
+  try {
+    const { examenId, alumnoId } = req.params;
+
+    // Buscar el examen en la base de datos
+    const examen = await Examen.findById(examenId);
+
+    if (!examen) {
+      return res.status(404).json({ message: "Examen no encontrado" });
+    }
+
+    // Buscar las respuestas del alumno
+    const respuestasAlumno = examen.respuestas.find(
+      (resp) => resp.alumno.toString() === alumnoId
+    );
+
+    if (!respuestasAlumno) {
+      return res.json({
+        completado: false,
+        corregido: false,
+        totalPuntuacion: null,
+      });
+    }
+
+    // Enviar la respuesta con el estado del examen
+    res.json({
+      completado: true,
+      corregido: respuestasAlumno.corregido,
+      totalPuntuacion: respuestasAlumno.corregido
+        ? respuestasAlumno.totalPuntuacion
+        : null,
+    });
+  } catch (error) {
+    console.error("Error al verificar el estado del examen:", error);
+    res.status(500).json({ message: "Error interno del servidor" });
+  }
+});
+
 module.exports = router;
