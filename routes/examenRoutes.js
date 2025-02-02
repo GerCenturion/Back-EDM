@@ -197,4 +197,124 @@ router.get(
   }
 );
 
+router.get(
+  "/:examenId/respuestas",
+  authenticate,
+  authorize(["profesor", "admin"]),
+  async (req, res) => {
+    try {
+      const examen = await Examen.findById(req.params.examenId)
+        .populate("respuestas.alumno", "name email") // Poblar información del alumno
+        .populate("preguntas"); // Poblar todas las preguntas del examen
+
+      if (!examen) {
+        return res.status(404).json({ message: "Examen no encontrado" });
+      }
+
+      // Asignar el texto de la pregunta a cada respuesta
+      examen.respuestas.forEach((resp) => {
+        resp.respuestas.forEach((r) => {
+          const preguntaCompleta = examen.preguntas.find(
+            (p) => p._id.toString() === r.preguntaId.toString()
+          );
+
+          if (preguntaCompleta) {
+            r.preguntaTexto = preguntaCompleta.texto;
+          } else {
+            r.preguntaTexto = "⚠️ Pregunta no encontrada";
+          }
+        });
+      });
+
+      res.status(200).json(examen.respuestas);
+    } catch (error) {
+      console.error("❌ Error al obtener respuestas:", error);
+      res.status(500).json({ message: "Error interno del servidor" });
+    }
+  }
+);
+
+router.post(
+  "/:examenId/corregir/:alumnoId",
+  authenticate,
+  authorize(["profesor", "admin"]),
+  async (req, res) => {
+    try {
+      const { respuestas } = req.body;
+      const examen = await Examen.findById(req.params.examenId);
+
+      if (!examen) {
+        return res.status(404).json({ message: "Examen no encontrado" });
+      }
+
+      const respuestasAlumno = examen.respuestas.find(
+        (resp) => resp.alumno.toString() === req.params.alumnoId
+      );
+
+      if (!respuestasAlumno) {
+        return res
+          .status(404)
+          .json({ message: "Respuestas del alumno no encontradas" });
+      }
+
+      respuestasAlumno.respuestas = respuestas;
+      respuestasAlumno.corregido = true;
+      respuestasAlumno.totalPuntuacion = respuestas.reduce(
+        (total, r) => total + (r.puntuacionObtenida || 0),
+        0
+      );
+
+      await examen.save();
+
+      res.status(200).json({ message: "Corrección guardada con éxito" });
+    } catch (error) {
+      console.error("Error al guardar corrección:", error);
+      res.status(500).json({ message: "Error interno del servidor" });
+    }
+  }
+);
+
+router.get(
+  "/:examenId/detalles-completos",
+  authenticate,
+  authorize(["profesor", "admin"]),
+  async (req, res) => {
+    try {
+      const examen = await Examen.findById(req.params.examenId)
+        .populate("materia", "name") // Poblar la materia
+        .populate("profesor", "name email") // Poblar profesor
+        .populate("preguntas") // Poblar preguntas
+        .populate("respuestas.alumno", "name email") // Poblar alumnos
+        .lean(); // Convertir a objeto JSON
+
+      if (!examen) {
+        return res.status(404).json({ message: "Examen no encontrado" });
+      }
+
+      // Asociar las respuestas con sus preguntas correspondientes
+      examen.respuestas.forEach((respuesta) => {
+        respuesta.respuestas = respuesta.respuestas.map((resp) => {
+          const pregunta = examen.preguntas.find((p) =>
+            p._id.equals(resp.preguntaId)
+          );
+
+          return {
+            ...resp,
+            preguntaTexto: pregunta
+              ? pregunta.texto
+              : "⚠️ Pregunta no encontrada",
+            opciones: pregunta ? pregunta.opciones : [],
+            tipo: pregunta ? pregunta.tipo : "desconocido",
+          };
+        });
+      });
+
+      res.status(200).json(examen);
+    } catch (error) {
+      console.error("❌ Error al obtener examen completo:", error);
+      res.status(500).json({ message: "Error interno del servidor" });
+    }
+  }
+);
+
 module.exports = router;
