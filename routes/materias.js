@@ -1,5 +1,3 @@
-//materia.js
-
 const express = require("express");
 const { authenticate, authorize } = require("../middleware/authenticate");
 const Materia = require("../models/Materia");
@@ -34,6 +32,30 @@ router.get("/:id", authenticate, async (req, res) => {
     res.status(200).json(materia);
   } catch (error) {
     console.error("Error al obtener materia:", error.message);
+    res.status(500).json({ message: "Error interno del servidor" });
+  }
+});
+
+// 📌 Obtener una materia con sus exámenes completos
+router.get("/completo/:id", authenticate, async (req, res) => {
+  try {
+    const materia = await Materia.findById(req.params.id)
+      .populate("professor", "name email role")
+      .populate("students.student", "name email dni")
+      .populate({
+        path: "examenes",
+        model: "Examen",
+        select: "_id titulo profesor preguntas",
+      });
+
+    if (!materia) {
+      return res.status(404).json({ message: "Materia no encontrada" });
+    }
+
+    console.log("Materia obtenida con exámenes:", materia);
+    res.status(200).json(materia);
+  } catch (error) {
+    console.error("Error al obtener materia:", error);
     res.status(500).json({ message: "Error interno del servidor" });
   }
 });
@@ -380,5 +402,29 @@ router.delete(
     }
   }
 );
+
+// 📌 Obtener una materia con sus exámenes completos
+router.get("/:id", authenticate, async (req, res) => {
+  try {
+    const materia = await Materia.findById(req.params.id)
+      .populate("professor", "name email role")
+      .populate("students.student", "name email dni")
+      .populate({
+        path: "examenes",
+        model: "Examen",
+        select: "_id titulo profesor preguntas",
+      });
+
+    if (!materia) {
+      return res.status(404).json({ message: "Materia no encontrada" });
+    }
+
+    console.log("Materia obtenida con exámenes:", materia);
+    res.status(200).json(materia);
+  } catch (error) {
+    console.error("Error al obtener materia:", error);
+    res.status(500).json({ message: "Error interno del servidor" });
+  }
+});
 
 module.exports = router;

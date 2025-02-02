@@ -15,11 +15,9 @@ router.post(
       const { titulo, materia, preguntas } = req.body;
 
       if (!titulo || !materia || !preguntas || preguntas.length === 0) {
-        return res
-          .status(400)
-          .json({
-            message: "El título, la materia y las preguntas son requeridas",
-          });
+        return res.status(400).json({
+          message: "El título, la materia y las preguntas son requeridas",
+        });
       }
 
       const nuevoExamen = new Examen({
@@ -84,6 +82,73 @@ router.delete(
       res.status(200).json({ message: "Examen eliminado con éxito" });
     } catch (error) {
       console.error("Error al eliminar examen:", error);
+      res.status(500).json({ message: "Error interno del servidor" });
+    }
+  }
+);
+// 📌 Obtener un examen específico
+router.get(
+  "/examenes/:examenId",
+  authenticate,
+  authorize(["profesor", "alumno", "admin"]),
+  async (req, res) => {
+    try {
+      const examen = await Examen.findById(req.params.examenId).populate(
+        "materia"
+      );
+
+      if (!examen) {
+        return res.status(404).json({ message: "Examen no encontrado" });
+      }
+
+      res.status(200).json(examen);
+    } catch (error) {
+      console.error("Error al obtener examen:", error);
+      res.status(500).json({ message: "Error interno del servidor" });
+    }
+  }
+);
+
+// 📌 Enviar respuestas del examen
+router.post(
+  "/:examenId/responder",
+  authenticate,
+  authorize(["alumno"]),
+  async (req, res) => {
+    try {
+      const { respuestas } = req.body;
+      const examen = await Examen.findById(req.params.examenId);
+
+      if (!examen) {
+        return res.status(404).json({ message: "Examen no encontrado" });
+      }
+
+      // Verificamos si el alumno ya respondió el examen
+      const yaRespondido = examen.respuestas.some(
+        (resp) => resp.alumno.toString() === req.user.id
+      );
+      if (yaRespondido) {
+        return res
+          .status(400)
+          .json({ message: "Ya has respondido este examen." });
+      }
+
+      // Guardamos las respuestas del alumno
+      const nuevaRespuesta = {
+        alumno: req.user.id,
+        respuestas: respuestas.map((respuesta) => ({
+          preguntaId: respuesta.preguntaId,
+          respuestaTexto: respuesta.respuestaTexto,
+        })),
+        corregido: false, // Se corregirá manualmente o con lógica automática después
+      };
+
+      examen.respuestas.push(nuevaRespuesta);
+      await examen.save();
+
+      res.status(200).json({ message: "Respuestas enviadas con éxito" });
+    } catch (error) {
+      console.error("Error al enviar respuestas:", error);
       res.status(500).json({ message: "Error interno del servidor" });
     }
   }
