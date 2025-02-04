@@ -10,6 +10,10 @@ const UsuarioSchema = new mongoose.Schema({
     required: [true, "El correo electrónico es obligatorio"],
     unique: true,
   },
+  profileImage: {
+    type: String, // Guardaremos la URL de la imagen en la base de datos
+    default: "", // Puede estar vacío inicialmente
+  },
   phoneCode: {
     type: String,
     required: function () {
