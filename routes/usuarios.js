@@ -118,4 +118,44 @@ router.get("/me", authenticate, async (req, res) => {
   }
 });
 
+// Cambiar contraseña del usuario autenticado
+router.put("/cambiar-contrasena", authenticate, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res
+        .status(400)
+        .json({ message: "Todos los campos son obligatorios." });
+    }
+
+    const usuario = await Usuario.findById(req.user.id);
+
+    if (!usuario) {
+      return res.status(404).json({ message: "Usuario no encontrado." });
+    }
+
+    // Verificar la contraseña actual
+    const isMatch = await bcrypt.compare(currentPassword, usuario.password);
+    if (!isMatch) {
+      return res
+        .status(401)
+        .json({ message: "La contraseña actual es incorrecta." });
+    }
+
+    // Encriptar la nueva contraseña
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    // Actualizar la contraseña en la base de datos
+    usuario.password = hashedPassword;
+    await usuario.save();
+
+    res.status(200).json({ message: "Contraseña actualizada con éxito." });
+  } catch (error) {
+    console.error("Error al cambiar la contraseña:", error.message);
+    res.status(500).json({ message: "Error interno del servidor." });
+  }
+});
+
 module.exports = router;
