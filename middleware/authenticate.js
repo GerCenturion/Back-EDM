@@ -12,8 +12,8 @@ const authenticate = async (req, res, next) => {
   }
 
   const token = authHeader.startsWith("Bearer ")
-    ? authHeader.split(" ")[1] // Si usa "Bearer ", extrae solo el token
-    : authHeader; // Si no tiene "Bearer", asume que es el token puro
+    ? authHeader.split(" ")[1] // Extraer el token sin "Bearer"
+    : authHeader;
 
   try {
     const verified = jwt.verify(token, process.env.JWT_SECRET);
@@ -23,7 +23,7 @@ const authenticate = async (req, res, next) => {
       return res.status(401).json({ message: "Usuario no encontrado." });
     }
 
-    req.user = user; // Adjunta los datos completos del usuario
+    req.user = user;
     next();
   } catch (error) {
     console.error("Error al verificar el token:", error.message);
@@ -31,7 +31,9 @@ const authenticate = async (req, res, next) => {
     if (error.name === "TokenExpiredError") {
       return res
         .status(401)
-        .json({ message: "El token ha expirado. Inicia sesión nuevamente." });
+        .json({
+          message: "El token ha expirado. Cierra sesión e inicia nuevamente.",
+        });
     }
 
     return res.status(403).json({ message: "Token no válido." });
