@@ -84,14 +84,23 @@ router.post("/create", authenticate, authorize(["admin"]), async (req, res) => {
 });
 
 // Ruta para actualizar una materia por ID
-router.put("/:id", authenticate, authorize(["admin"]), async (req, res) => {
+router.put("/:id", authenticate, async (req, res) => {
   try {
     const { isEnrollmentOpen, professor } = req.body;
-
     const materia = await Materia.findById(req.params.id);
 
     if (!materia) {
       return res.status(404).json({ message: "Materia no encontrada" });
+    }
+
+    // Permitir a los admins modificar cualquier materia, pero los profesores solo pueden modificar las suyas
+    if (
+      req.user.role !== "admin" &&
+      materia.professor.toString() !== req.user.id
+    ) {
+      return res
+        .status(403)
+        .json({ message: "No tienes permisos para modificar esta materia" });
     }
 
     if (isEnrollmentOpen !== undefined)
