@@ -7,6 +7,63 @@ const { whatsapp } = require("../config/whatsapp");
 
 const router = express.Router();
 
+// 📌 Función para enviar mensaje de WhatsApp (Directamente en usuarios.js)
+const sendWhatsAppMessage = async (chatId, mensaje) => {
+  try {
+    const number_details = await whatsapp.getNumberId(chatId);
+    if (number_details) {
+      await whatsapp.sendMessage(chatId, mensaje);
+      console.log(`✅ Mensaje enviado a ${chatId}`);
+    } else {
+      console.log(`❌ El número ${chatId} no está registrado en WhatsApp.`);
+    }
+  } catch (error) {
+    console.error("❌ Error al enviar mensaje de WhatsApp:", error);
+  }
+};
+
+// 📌 Reenviar código de verificación si el usuario ingresó uno incorrecto
+router.post("/reenviar-codigo", async (req, res) => {
+  try {
+    const { email } = req.body;
+    const usuario = await Usuario.findOne({ email });
+
+    if (!usuario) {
+      return res.status(404).json({ message: "Usuario no encontrado." });
+    }
+
+    if (usuario.isVerified) {
+      return res
+        .status(400)
+        .json({ message: "Este usuario ya está verificado." });
+    }
+
+    // 🔥 Generar un nuevo código de verificación directamente con crypto
+    const newCode = crypto.randomInt(100000, 999999).toString();
+    usuario.verificationCode = newCode;
+    usuario.verificationCodeExpires = Date.now() + 2 * 60 * 60 * 1000; // 2 horas de validez
+    await usuario.save();
+
+    // 🔥 Enviar nuevo código por WhatsApp
+    const chatId = `${usuario.phoneCode}${usuario.phoneArea}${usuario.phoneNumber}@c.us`;
+    const mensaje = `🔑 *Nuevo Código de Verificación:* ${newCode}\n\nPor favor, ingresa este código en el formulario para completar tu registro.`;
+
+    try {
+      await sendWhatsAppMessage(chatId, mensaje);
+    } catch (error) {
+      console.error("❌ Error al enviar mensaje de WhatsApp:", error);
+      return res
+        .status(500)
+        .json({ message: "Error al enviar código por WhatsApp." });
+    }
+
+    res.status(200).json({ message: "📩 Nuevo código enviado por WhatsApp." });
+  } catch (error) {
+    console.error("❌ Error al reenviar código:", error.message);
+    res.status(500).json({ message: "Error interno del servidor." });
+  }
+});
+
 // 📌 Crear un usuario y enviar código de verificación por WhatsApp
 router.post("/", async (req, res) => {
   try {
@@ -48,12 +105,10 @@ router.post("/", async (req, res) => {
       $or: [{ email }, { dni }],
     });
     if (usuarioExistente) {
-      return res
-        .status(400)
-        .json({
-          message:
-            "El correo electrónico o el DNI ya están registrados en el sistema.",
-        });
+      return res.status(400).json({
+        message:
+          "El correo electrónico o el DNI ya están registrados en el sistema.",
+      });
     }
 
     // Encriptar contraseña
