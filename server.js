@@ -10,6 +10,7 @@ const materiasRoutes = require("./routes/materias");
 const uploadRoutes = require("./routes/uploadRoutes");
 const examenRoutes = require("./routes/examenRoutes");
 const crearMateriasDefault = require("./config/materiasDefault");
+const whatsappRoutes = require("./routes/whatsapp"); // 🔥 Agregar WhatsApp
 
 dotenv.config();
 
@@ -23,7 +24,6 @@ app.use(
 );
 
 connectDB();
-
 app.use(express.json());
 
 app.use("/api/usuarios", usuariosRoutes);
@@ -31,6 +31,7 @@ app.use("/api/login", loginRoutes);
 app.use("/api/materias", materiasRoutes);
 app.use("/api/uploads", uploadRoutes);
 app.use("/api/examenes", examenRoutes);
+app.use("/api/whatsapp", whatsappRoutes); // 🔥 Integrar WhatsApp API
 
 app.get("/", (req, res) => {
   res.send("API funcionando");
@@ -43,8 +44,9 @@ app.use((err, req, res, next) => {
 
 createDefaultAdmin();
 crearMateriasDefault();
-
 app.use("/api/admin", adminRoutes);
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Servidor corriendo en el puerto ${PORT}`));
+app.listen(PORT, () =>
+  console.log(`🚀 Servidor corriendo en el puerto ${PORT}`)
+);

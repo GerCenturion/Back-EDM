@@ -2,6 +2,7 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const Usuario = require("../models/Usuario");
 const { authenticate, authorize } = require("../middleware/authenticate");
+const { whatsapp } = require("../config/whatsapp");
 
 const router = express.Router();
 
@@ -77,6 +78,22 @@ router.post("/", async (req, res) => {
 
     // Guardar usuario en la base de datos
     await nuevoUsuario.save();
+
+    // 🔥 Enviar mensaje de bienvenida por WhatsApp
+    const chatId = `${phoneCode}${phoneArea}${phoneNumber}@c.us`;
+    const mensaje = `¡Hola ${name}! 🎉\n\nBienvenido/a al Campus Virtual. Nos alegra tenerte con nosotros. 🎓📚\n\nCualquier consulta, estamos aquí para ayudarte.`;
+
+    try {
+      const number_details = await whatsapp.getNumberId(chatId);
+      if (number_details) {
+        await whatsapp.sendMessage(chatId, mensaje);
+        console.log(`✅ Mensaje enviado a ${chatId}`);
+      } else {
+        console.log(`❌ El número ${chatId} no está registrado en WhatsApp.`);
+      }
+    } catch (error) {
+      console.error("❌ Error al enviar mensaje de WhatsApp:", error);
+    }
 
     // Respuesta exitosa
     res.status(201).json({ message: "Usuario registrado con éxito" });
