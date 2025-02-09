@@ -100,6 +100,19 @@ const UsuarioSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  // 🔥 Nuevos campos para la verificación por WhatsApp
+  verificationCode: {
+    type: String, // Código de verificación de 6 dígitos
+    default: null,
+  },
+  verificationCodeExpires: {
+    type: Date, // Fecha de expiración del código de verificación
+    default: null,
+  },
+  isVerified: {
+    type: Boolean, // Indica si el usuario ha completado la verificación
+    default: false,
+  },
 });
 
 module.exports = mongoose.model("Usuario", UsuarioSchema);
