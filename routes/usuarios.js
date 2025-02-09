@@ -1,6 +1,7 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
+const jwt = require("jsonwebtoken");
 const Usuario = require("../models/Usuario");
 const { authenticate, authorize } = require("../middleware/authenticate");
 const { whatsapp } = require("../config/whatsapp");
@@ -293,6 +294,89 @@ router.put("/cambiar-contrasena", authenticate, async (req, res) => {
   } catch (error) {
     console.error("Error al cambiar la contraseña:", error.message);
     res.status(500).json({ message: "Error interno del servidor." });
+  }
+});
+
+// 📌 Enviar código de recuperación de contraseña
+router.post("/recuperar", async (req, res) => {
+  try {
+    const { dni } = req.body;
+    if (!dni) {
+      return res.status(400).json({ message: "El DNI es obligatorio" });
+    }
+
+    const usuario = await Usuario.findOne({ dni });
+    if (!usuario) {
+      return res.status(404).json({ message: "Usuario no encontrado" });
+    }
+
+    // Generar un código de 6 dígitos y expiración
+    const recoveryCode = crypto.randomInt(100000, 999999).toString();
+    usuario.verificationCode = recoveryCode;
+    usuario.verificationCodeExpires = Date.now() + 2 * 60 * 60 * 1000; // 2 horas
+    await usuario.save();
+
+    // Enviar código por WhatsApp
+    const chatId = `${usuario.phoneCode}9${usuario.phoneArea}${usuario.phoneNumber}@c.us`;
+    const mensaje = `🔑 *Código de recuperación:* ${recoveryCode}\n\nIngresa este código en la plataforma para restablecer tu contraseña.`;
+
+    try {
+      await whatsapp.sendMessage(chatId, mensaje);
+      console.log(`✅ Código de recuperación enviado a ${chatId}`);
+    } catch (error) {
+      console.error("❌ Error al enviar código de recuperación:", error);
+      return res
+        .status(500)
+        .json({ message: "Error al enviar código por WhatsApp." });
+    }
+
+    res
+      .status(200)
+      .json({ message: "📩 Código de recuperación enviado por WhatsApp." });
+  } catch (error) {
+    console.error("Error en recuperación de contraseña:", error.message);
+    res.status(500).json({ message: "Error interno del servidor" });
+  }
+});
+
+// 📌 Verificar código y restablecer contraseña
+router.post("/restablecer", async (req, res) => {
+  try {
+    const { dni, verificationCode, newPassword } = req.body;
+
+    if (!dni || !verificationCode || !newPassword) {
+      return res
+        .status(400)
+        .json({ message: "Todos los campos son obligatorios" });
+    }
+
+    const usuario = await Usuario.findOne({ dni });
+
+    if (!usuario) {
+      return res.status(404).json({ message: "Usuario no encontrado" });
+    }
+
+    if (usuario.verificationCode !== verificationCode) {
+      return res.status(400).json({ message: "Código incorrecto" });
+    }
+
+    if (usuario.verificationCodeExpires < Date.now()) {
+      return res.status(400).json({ message: "El código ha expirado" });
+    }
+
+    // Encriptar la nueva contraseña
+    const salt = await bcrypt.genSalt(10);
+    usuario.password = await bcrypt.hash(newPassword, salt);
+
+    // Resetear código de verificación
+    usuario.verificationCode = null;
+    usuario.verificationCodeExpires = null;
+    await usuario.save();
+
+    res.status(200).json({ message: "✅ Contraseña restablecida con éxito." });
+  } catch (error) {
+    console.error("Error al restablecer contraseña:", error.message);
+    res.status(500).json({ message: "Error interno del servidor" });
   }
 });
 
