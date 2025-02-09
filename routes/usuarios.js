@@ -45,7 +45,7 @@ router.post("/reenviar-codigo", async (req, res) => {
     await usuario.save();
 
     // 🔥 Enviar nuevo código por WhatsApp
-    const chatId = `${usuario.phoneCode}${usuario.phoneArea}${usuario.phoneNumber}@c.us`;
+    const chatId = `${usuario.phoneCode}9${usuario.phoneArea}${usuario.phoneNumber}@c.us`;
     const mensaje = `🔑 *Nuevo Código de Verificación:* ${newCode}\n\nPor favor, ingresa este código en el formulario para completar tu registro.`;
 
     try {
@@ -144,7 +144,7 @@ router.post("/", async (req, res) => {
     await nuevoUsuario.save();
 
     // 🔥 Enviar código de verificación por WhatsApp
-    const chatId = `${phoneCode}${phoneArea}${phoneNumber}@c.us`;
+    const chatId = `${phoneCode}9${phoneArea}${phoneNumber}@c.us`;
     const mensaje = `📌 *Tu código de verificación para el Campus Virtual es:* *${verificationCode}*\n\nEste código es válido por 2 horas.`;
 
     try {
@@ -201,7 +201,7 @@ router.post("/verificar", async (req, res) => {
     await usuario.save();
 
     // 🔥 Enviar mensaje de bienvenida por WhatsApp
-    const chatId = `${usuario.phoneCode}${usuario.phoneArea}${usuario.phoneNumber}@c.us`;
+    const chatId = `${usuario.phoneCode}9${usuario.phoneArea}${usuario.phoneNumber}@c.us`;
     const mensajeBienvenida = `🎉 ¡Bienvenido/a ${usuario.name} al Campus Virtual! 🎓📚\n\nNos alegra mucho tenerte con nosotros. Recuerda que puedes acceder a los cursos, materiales y más desde nuestra plataforma.\n\nSi tienes dudas, contáctanos.\n\n📌 *Campus Virtual*`;
 
     try {
