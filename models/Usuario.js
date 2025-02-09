@@ -32,12 +32,12 @@ const UsuarioSchema = new mongoose.Schema({
       return !this.isDefaultAdmin;
     },
   },
-  phoneType: {
-    type: String,
-    required: function () {
-      return !this.isDefaultAdmin;
-    },
-  },
+  // phoneType: {
+  //   type: String,
+  //   required: function () {
+  //     return !this.isDefaultAdmin;
+  //   },
+  // },
   birthdate: {
     type: Date,
     required: function () {
