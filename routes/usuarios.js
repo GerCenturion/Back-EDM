@@ -380,22 +380,4 @@ router.post("/restablecer", async (req, res) => {
   }
 });
 
-router.get(
-  "/libreta/:alumnoId",
-  authenticate,
-  authorize(["alumno", "admin"]),
-  async (req, res) => {
-    try {
-      const libreta = await Libreta.find({ alumno: req.params.alumnoId })
-        .populate("materia", "name level")
-        .populate("profesor", "name");
-
-      res.status(200).json(libreta);
-    } catch (error) {
-      console.error("Error al obtener la libreta:", error.message);
-      res.status(500).json({ message: "Error interno del servidor" });
-    }
-  }
-);
-
 module.exports = router;

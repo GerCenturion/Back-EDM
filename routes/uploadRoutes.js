@@ -12,13 +12,13 @@ const Usuario = require("../models/Usuario");
 const { authenticate } = require("../middleware/authenticate");
 require("dotenv").config();
 
-// Configuración del cliente S3 para DigitalOcean Spaces
+// Configuración del cliente S3 usando variables de entorno
 const s3 = new S3Client({
-  region: "nyc3",
-  endpoint: "https://nyc3.digitaloceanspaces.com",
+  region: process.env.DO_SPACES_REGION,
+  endpoint: process.env.DO_SPACES_ENDPOINT,
   credentials: {
-    accessKeyId: "DO00MRU9HK9JATVB6UJ3", // Llave de acceso desde el archivo .env
-    secretAccessKey: "XPJMSKDK43dz9SCqEJWqNm71bClpf61523TS6nBqZDU", // Llave secreta desde el archivo .env
+    accessKeyId: process.env.DO_SPACES_ACCESS_KEY, // 🔒 Desde .env
+    secretAccessKey: process.env.DO_SPACES_SECRET_KEY, // 🔒 Desde .env
   },
 });
 
