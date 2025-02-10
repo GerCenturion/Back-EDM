@@ -69,6 +69,10 @@ const MateriaSchema = new mongoose.Schema({
       ref: "Examen",
     },
   ],
+  cerrada: {
+    type: Boolean,
+    default: false, // La materia comienza como abierta
+  },
   updatedAt: { type: Date, default: Date.now },
   createdAt: { type: Date, default: Date.now },
 });

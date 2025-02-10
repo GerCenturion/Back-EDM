@@ -2,8 +2,48 @@ const express = require("express");
 const { authenticate, authorize } = require("../middleware/authenticate");
 const Materia = require("../models/Materia");
 const Usuario = require("../models/Usuario");
+const Libreta = require("../models/Libreta");
+const Examen = require("../models/Examen");
 
 const router = express.Router();
+
+// 📌 ✅ RUTA PARA OBTENER TODAS LAS LIBRETAS
+router.get(
+  "/libretas",
+  authenticate,
+  authorize(["admin", "profesor"]),
+  async (req, res) => {
+    try {
+      const libretas = await Libreta.find()
+        .populate("alumno", "name email")
+        .populate("materia", "name level")
+        .populate("profesor", "name");
+
+      res.status(200).json(libretas);
+    } catch (error) {
+      console.error("Error al obtener las libretas:", error.message);
+      res.status(500).json({ message: "Error interno del servidor" });
+    }
+  }
+);
+
+router.get(
+  "/libreta/:alumnoId",
+  authenticate,
+  authorize(["alumno"]),
+  async (req, res) => {
+    try {
+      const libreta = await Libreta.find({ alumno: req.params.alumnoId })
+        .populate("materia", "name level")
+        .populate("profesor", "name");
+
+      res.status(200).json(libreta);
+    } catch (error) {
+      console.error("Error al obtener la libreta:", error.message);
+      res.status(500).json({ message: "Error interno del servidor" });
+    }
+  }
+);
 
 // Ruta para obtener todas las materias
 router.get("/", authenticate, async (req, res) => {
@@ -407,6 +447,68 @@ router.delete(
       res.status(200).json({ message: "Video eliminado con éxito", materia });
     } catch (error) {
       console.error("Error al eliminar video:", error);
+      res.status(500).json({ message: "Error interno del servidor" });
+    }
+  }
+);
+
+// 📌 Ruta para cerrar una materia y generar la libreta de notas
+router.put(
+  "/cerrar/:id",
+  authenticate,
+  authorize(["profesor", "admin"]),
+  async (req, res) => {
+    try {
+      const materia = await Materia.findById(req.params.id)
+        .populate("students.student")
+        .populate("professor");
+
+      if (!materia) {
+        return res.status(404).json({ message: "Materia no encontrada." });
+      }
+
+      if (materia.cerrada) {
+        return res
+          .status(400)
+          .json({ message: "Esta materia ya ha sido cerrada." });
+      }
+
+      // 📌 Guardar notas en la libreta
+      for (let student of materia.students) {
+        if (!student.student) continue;
+
+        const examenes = await Examen.find({ materia: materia._id });
+
+        let totalNota = 0;
+        let cantidadExamenes = examenes.length; // ✅ Si hay exámenes sin completar, se cuenta como 0
+
+        examenes.forEach((examen) => {
+          const respuestaAlumno = examen.respuestas.find(
+            (r) => r.alumno.toString() === student.student._id.toString()
+          );
+          totalNota += respuestaAlumno ? respuestaAlumno.totalPuntuacion : 0;
+        });
+
+        const notaFinal =
+          cantidadExamenes > 0 ? totalNota / cantidadExamenes : 0;
+
+        await Libreta.create({
+          alumno: student.student._id,
+          materia: materia._id,
+          profesor: materia.professor._id,
+          notaFinal,
+        });
+      }
+
+      // 📌 Marcar la materia como cerrada
+      materia.cerrada = true;
+      await materia.save();
+
+      res
+        .status(200)
+        .json({ message: "Materia cerrada y notas guardadas con éxito." });
+    } catch (error) {
+      console.error("Error al cerrar materia:", error.message);
       res.status(500).json({ message: "Error interno del servidor" });
     }
   }
