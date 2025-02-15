@@ -110,17 +110,25 @@ router.get(
   authorize(["profesor", "alumno", "admin"]),
   async (req, res) => {
     try {
-      const examen = await Examen.findById(req.params.examenId).populate(
-        "materia"
-      );
+      const examen = await Examen.findById(req.params.examenId)
+        .populate("materia")
+        .populate("respuestas.alumno", "name email") // Poblar información del alumno
+        .lean(); // Convertir el resultado en objeto plano
 
       if (!examen) {
         return res.status(404).json({ message: "Examen no encontrado" });
       }
 
+      // Si el usuario es un alumno, solo enviamos SUS respuestas
+      if (req.user.role === "alumno") {
+        examen.respuestas = examen.respuestas.filter(
+          (resp) => resp.alumno._id.toString() === req.user.id
+        );
+      }
+
       res.status(200).json(examen);
     } catch (error) {
-      console.error("Error al obtener examen:", error);
+      console.error("❌ Error al obtener examen:", error);
       res.status(500).json({ message: "Error interno del servidor" });
     }
   }
