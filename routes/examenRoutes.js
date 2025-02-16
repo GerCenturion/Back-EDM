@@ -1,9 +1,26 @@
 const express = require("express");
+const multer = require("multer");
+const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
 const { authenticate, authorize } = require("../middleware/authenticate");
 const Examen = require("../models/Examen");
 const Materia = require("../models/Materia");
+const { v4: uuidv4 } = require("uuid");
+require("dotenv").config();
 
 const router = express.Router();
+
+// Configuración de Multer para subir archivos a la memoria
+const upload = multer({ storage: multer.memoryStorage() });
+
+// Configuración de DigitalOcean Spaces
+const s3 = new S3Client({
+  region: process.env.DO_SPACES_REGION,
+  endpoint: process.env.DO_SPACES_ENDPOINT,
+  credentials: {
+    accessKeyId: process.env.DO_SPACES_ACCESS_KEY,
+    secretAccessKey: process.env.DO_SPACES_SECRET_KEY,
+  },
+});
 
 // 📌 Crear un examen y asociarlo a una materia
 router.post(
@@ -12,7 +29,7 @@ router.post(
   authorize(["profesor", "admin"]),
   async (req, res) => {
     try {
-      const { titulo, materia, preguntas } = req.body;
+      const { titulo, materia, preguntas, fechaLimite } = req.body;
 
       if (!titulo || !materia || !preguntas || preguntas.length === 0) {
         return res.status(400).json({
@@ -20,21 +37,37 @@ router.post(
         });
       }
 
-      // Validamos preguntas
+      if (!fechaLimite) {
+        return res
+          .status(400)
+          .json({ message: "La fecha límite es requerida" });
+      }
+
+      // Validar preguntas
       preguntas.forEach((pregunta) => {
-        if (!["multiple-choice", "desarrollo"].includes(pregunta.tipo)) {
-          throw new Error(
-            "El tipo de pregunta debe ser 'multiple-choice' o 'desarrollo'"
-          );
+        if (
+          !["multiple-choice", "desarrollo", "audio"].includes(pregunta.tipo)
+        ) {
+          return res.status(400).json({
+            message:
+              "El tipo de pregunta debe ser 'multiple-choice', 'desarrollo' o 'audio'",
+          });
         }
 
         if (
           pregunta.tipo === "multiple-choice" &&
           (!pregunta.opciones || pregunta.opciones.length === 0)
         ) {
-          throw new Error(
-            "Las preguntas de selección múltiple deben tener opciones."
-          );
+          return res.status(400).json({
+            message:
+              "Las preguntas de selección múltiple deben tener opciones.",
+          });
+        }
+
+        if (pregunta.tipo === "audio" && pregunta.opciones?.length > 0) {
+          return res.status(400).json({
+            message: "Las preguntas de audio no deben tener opciones.",
+          });
         }
       });
 
@@ -42,6 +75,7 @@ router.post(
         titulo,
         materia,
         profesor: req.user.id,
+        fechaLimite,
         preguntas,
       });
 
@@ -55,7 +89,7 @@ router.post(
         .status(201)
         .json({ message: "Examen creado con éxito", examen: examenGuardado });
     } catch (error) {
-      console.error("Error al crear examen:", error);
+      console.error("❌ Error al crear examen:", error);
       res.status(500).json({ message: "Error interno del servidor" });
     }
   }
@@ -139,9 +173,11 @@ router.post(
   "/:examenId/responder",
   authenticate,
   authorize(["alumno"]),
+  upload.single("archivoAudio"),
   async (req, res) => {
     try {
-      const { respuestas } = req.body;
+      const respuestas = JSON.parse(req.body.respuestas);
+      const archivoAudio = req.file; // Obtener archivo de audio
       const examen = await Examen.findById(req.params.examenId);
 
       if (!examen) {
@@ -158,12 +194,39 @@ router.post(
           .json({ message: "Ya has respondido este examen." });
       }
 
+      // 📌 Verificar fecha límite
+      if (new Date() > new Date(examen.fechaLimite)) {
+        return res.status(400).json({
+          message:
+            "La fecha límite ha pasado. No puedes completar este examen.",
+        });
+      }
+
+      let audioUrl = null;
+      if (archivoAudio) {
+        const fileKey = `examenes/${req.params.examenId}/${uuidv4()}-${
+          archivoAudio.originalname
+        }`;
+        const uploadParams = {
+          Bucket: "escuela-de-misiones",
+          Key: fileKey,
+          Body: archivoAudio.buffer,
+          ContentType: archivoAudio.mimetype,
+          ACL: "public-read",
+        };
+
+        await s3.send(new PutObjectCommand(uploadParams));
+        audioUrl = `https://${uploadParams.Bucket}.nyc3.digitaloceanspaces.com/${fileKey}`;
+      }
+
       // Guardamos las respuestas del alumno
       const nuevaRespuesta = {
         alumno: req.user.id,
         respuestas: respuestas.map((respuesta) => ({
           preguntaId: respuesta.preguntaId,
-          respuestaTexto: respuesta.respuestaTexto,
+          respuestaTexto: respuesta.respuestaTexto || "",
+          opcionSeleccionada: respuesta.opcionSeleccionada || null,
+          respuestaAudioUrl: respuesta.respuestaAudio ? audioUrl : null, // Guardar solo si es pregunta de audio
         })),
         corregido: false, // Se corregirá manualmente o con lógica automática después
       };

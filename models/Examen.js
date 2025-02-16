@@ -16,21 +16,25 @@ const ExamenSchema = new mongoose.Schema({
     ref: "Usuario",
     required: true,
   },
+  fechaLimite: {
+    type: Date,
+    required: true,
+  },
   preguntas: [
     {
       texto: { type: String, required: true },
       tipo: {
         type: String,
-        enum: ["multiple-choice", "desarrollo"],
+        enum: ["multiple-choice", "desarrollo", "audio"], // ✅ Se agregó tipo "audio"
         required: true,
-      }, // ✅ Se agrega tipo de pregunta
+      },
       opciones: [
         {
-          texto: { type: String, required: false }, // Opcional solo si es "multiple-choice"
-          puntuacion: { type: Number, required: false, min: 0, max: 10 }, // Opcional solo si es "multiple-choice"
+          texto: { type: String, required: false },
+          puntuacion: { type: Number, required: false, min: 0, max: 10 },
         },
       ],
-      puntuacion: { type: Number, required: true, min: 0, max: 10 }, // Para calcular la nota del examen
+      puntuacion: { type: Number, required: true, min: 0, max: 10 },
     },
   ],
   respuestas: [
@@ -43,11 +47,12 @@ const ExamenSchema = new mongoose.Schema({
       respuestas: [
         {
           preguntaId: { type: mongoose.Schema.Types.ObjectId, required: true },
-          respuestaTexto: { type: String, required: false }, // ❓ Puede estar vacío si es de opción múltiple
+          respuestaTexto: { type: String, required: false },
           opcionSeleccionada: {
             type: mongoose.Schema.Types.ObjectId,
             required: false,
-          }, // 🔄 ID de la opción elegida si es "multiple-choice"
+          },
+          respuestaAudioUrl: { type: String, required: false }, // ✅ Se agrega campo para almacenar URL del audio
           puntuacionObtenida: { type: Number, min: 0, max: 10, default: 0 },
         },
       ],
@@ -55,11 +60,7 @@ const ExamenSchema = new mongoose.Schema({
       totalPuntuacion: { type: Number, min: 0, max: 10, default: 0 },
     },
   ],
-
   creadoEn: { type: Date, default: Date.now },
 });
-
-// Índice para mejorar rendimiento en búsquedas por materia
-ExamenSchema.index({ materia: 1 });
 
 module.exports = mongoose.model("Examen", ExamenSchema);
