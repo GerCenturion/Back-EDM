@@ -311,36 +311,51 @@ router.post(
   authorize(["profesor", "admin"]),
   async (req, res) => {
     try {
-      const { respuestas } = req.body;
-      const examen = await Examen.findById(req.params.examenId);
+      const { correcciones } = req.body;
 
-      if (!examen) {
-        return res.status(404).json({ message: "Examen no encontrado" });
+      if (!Array.isArray(correcciones) || correcciones.length === 0) {
+        return res
+          .status(400)
+          .json({ message: "No se enviaron correcciones válidas." });
       }
 
-      const respuestasAlumno = examen.respuestas.find(
+      const examen = await Examen.findById(req.params.examenId);
+      if (!examen) {
+        return res.status(404).json({ message: "Examen no encontrado." });
+      }
+
+      const respuestaAlumno = examen.respuestas.find(
         (resp) => resp.alumno.toString() === req.params.alumnoId
       );
 
-      if (!respuestasAlumno) {
+      if (!respuestaAlumno) {
         return res
           .status(404)
-          .json({ message: "Respuestas del alumno no encontradas" });
+          .json({ message: "Respuestas del alumno no encontradas." });
       }
 
-      respuestasAlumno.respuestas = respuestas;
-      respuestasAlumno.corregido = true;
-      respuestasAlumno.totalPuntuacion = respuestas.reduce(
-        (total, r) => total + (r.puntuacionObtenida || 0),
-        0
-      );
+      // Aplicar correcciones a cada respuesta
+      respuestaAlumno.respuestas.forEach((r) => {
+        const correccion = correcciones.find(
+          (c) => c.preguntaId === r.preguntaId.toString()
+        );
+        if (correccion) {
+          r.estado = correccion.estado; // "aprobado" o "rehacer"
+        }
+      });
+
+      // Si alguna respuesta es "rehacer", el estado general del examen es "rehacer"
+      respuestaAlumno.estado = respuestaAlumno.respuestas.some(
+        (r) => r.estado === "rehacer"
+      )
+        ? "rehacer"
+        : "aprobado";
 
       await examen.save();
-
-      res.status(200).json({ message: "Corrección guardada con éxito" });
+      res.status(200).json({ message: "Correcciones guardadas con éxito." });
     } catch (error) {
       console.error("Error al guardar corrección:", error);
-      res.status(500).json({ message: "Error interno del servidor" });
+      res.status(500).json({ message: "Error interno del servidor." });
     }
   }
 );
@@ -388,42 +403,46 @@ router.get(
   }
 );
 
-router.get("/:examenId/estado/:alumnoId", authenticate, async (req, res) => {
-  try {
-    const { examenId, alumnoId } = req.params;
+router.get(
+  "/:examenId/estado-detallado/:alumnoId",
+  authenticate,
+  async (req, res) => {
+    try {
+      const { examenId, alumnoId } = req.params;
 
-    // Buscar el examen en la base de datos
-    const examen = await Examen.findById(examenId);
+      // Buscar el examen
+      const examen = await Examen.findById(examenId);
 
-    if (!examen) {
-      return res.status(404).json({ message: "Examen no encontrado" });
-    }
+      if (!examen) {
+        return res.status(404).json({ message: "Examen no encontrado" });
+      }
 
-    // Buscar las respuestas del alumno
-    const respuestasAlumno = examen.respuestas.find(
-      (resp) => resp.alumno.toString() === alumnoId
-    );
+      // Buscar las respuestas del alumno en este examen
+      const respuestaAlumno = examen.respuestas.find(
+        (resp) => resp.alumno.toString() === alumnoId
+      );
 
-    if (!respuestasAlumno) {
-      return res.json({
-        completado: false,
-        corregido: false,
-        totalPuntuacion: null,
+      let estadoGeneral = "pendiente";
+      let corregido = false;
+      let completado = false;
+
+      if (respuestaAlumno) {
+        completado = true;
+        corregido = respuestaAlumno.estado !== "pendiente";
+        estadoGeneral = respuestaAlumno.estado;
+      }
+
+      res.json({
+        completado,
+        corregido,
+        estadoGeneral, // "pendiente", "aprobado", "rehacer"
+        fechaLimite: examen.fechaLimite || "No especificada",
       });
+    } catch (error) {
+      console.error("❌ Error al obtener estado detallado del examen:", error);
+      res.status(500).json({ message: "Error interno del servidor" });
     }
-
-    // Enviar la respuesta con el estado del examen
-    res.json({
-      completado: true,
-      corregido: respuestasAlumno.corregido,
-      totalPuntuacion: respuestasAlumno.corregido
-        ? respuestasAlumno.totalPuntuacion
-        : null,
-    });
-  } catch (error) {
-    console.error("Error al verificar el estado del examen:", error);
-    res.status(500).json({ message: "Error interno del servidor" });
   }
-});
+);
 
 module.exports = router;
