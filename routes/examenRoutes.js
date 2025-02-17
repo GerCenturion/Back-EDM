@@ -10,7 +10,10 @@ require("dotenv").config();
 const router = express.Router();
 
 // Configuración de Multer para subir archivos a la memoria
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 📌 10MB máximo por archivo
+});
 
 // Configuración de DigitalOcean Spaces
 const s3 = new S3Client({
@@ -43,8 +46,8 @@ router.post(
           .json({ message: "La fecha límite es requerida" });
       }
 
-      // Validar preguntas
-      preguntas.forEach((pregunta) => {
+      // 📌 Validar preguntas usando `for...of` para poder hacer `return`
+      for (const pregunta of preguntas) {
         if (
           !["multiple-choice", "desarrollo", "audio"].includes(pregunta.tipo)
         ) {
@@ -69,8 +72,9 @@ router.post(
             message: "Las preguntas de audio no deben tener opciones.",
           });
         }
-      });
+      }
 
+      // 📌 Crear el examen si todas las validaciones pasaron
       const nuevoExamen = new Examen({
         titulo,
         materia,
@@ -85,12 +89,14 @@ router.post(
         $push: { examenes: examenGuardado._id },
       });
 
-      res
+      return res
         .status(201)
         .json({ message: "Examen creado con éxito", examen: examenGuardado });
     } catch (error) {
       console.error("❌ Error al crear examen:", error);
-      res.status(500).json({ message: "Error interno del servidor" });
+      if (!res.headersSent) {
+        return res.status(500).json({ message: "Error interno del servidor" });
+      }
     }
   }
 );
@@ -173,18 +179,123 @@ router.post(
   "/:examenId/responder",
   authenticate,
   authorize(["alumno"]),
-  upload.single("archivoAudio"),
+  upload.array("archivoAudio", 10), // 📌 Permitir hasta 10 archivos de audio
   async (req, res) => {
     try {
+      // 📌 Parsear respuestas y obtener archivos de audio subidos
       const respuestas = JSON.parse(req.body.respuestas);
-      const archivoAudio = req.file; // Obtener archivo de audio
+      const archivosAudio = req.files || [];
       const examen = await Examen.findById(req.params.examenId);
 
       if (!examen) {
         return res.status(404).json({ message: "Examen no encontrado" });
       }
 
-      // Verificamos si el alumno ya respondió el examen
+      // 📌 Verificar si el alumno ya respondió el examen
+      const yaRespondido = examen.respuestas.some(
+        (resp) => resp.alumno.toString() === req.user.id
+      );
+      if (yaRespondido) {
+        return res
+          .status(400)
+          .json({ message: "Ya has respondido este examen." });
+      }
+
+      // 📌 Verificar que la fecha límite no haya pasado
+      if (new Date() > new Date(examen.fechaLimite).setHours(23, 59, 59, 999)) {
+        return res.status(400).json({
+          message:
+            "La fecha límite ha pasado. No puedes completar este examen.",
+        });
+      }
+
+      // 📌 Mapeamos archivos de audio a sus respectivas preguntas
+      let audioUrls = {};
+      if (archivosAudio.length > 0) {
+        await Promise.all(
+          archivosAudio.map(async (archivo) => {
+            const fileKey = `examenes/${req.params.examenId}/${uuidv4()}-${
+              archivo.originalname
+            }`;
+            const uploadParams = {
+              Bucket: "escuela-de-misiones",
+              Key: fileKey,
+              Body: archivo.buffer,
+              ContentType: archivo.mimetype,
+              ACL: "public-read",
+            };
+
+            await s3.send(new PutObjectCommand(uploadParams));
+
+            // 📌 Asociar la URL con el archivo subido
+            audioUrls[
+              archivo.originalname
+            ] = `https://${uploadParams.Bucket}.nyc3.digitaloceanspaces.com/${fileKey}`;
+          })
+        );
+      }
+
+      console.log("🟢 URLs de los audios subidos:", audioUrls);
+
+      // 📌 Asociar respuestas con las URLs de audio correctas
+      const nuevaRespuesta = {
+        alumno: req.user.id,
+        respuestas: respuestas.map((respuesta) => {
+          let audioUrl = null;
+
+          // 📌 Buscar el archivo de audio correspondiente a la pregunta
+          const archivoAudio = archivosAudio.find(
+            (file) => file.originalname === `audio_${respuesta.preguntaId}.wav`
+          );
+
+          if (archivoAudio) {
+            audioUrl = audioUrls[archivoAudio.originalname] || null;
+          }
+
+          return {
+            preguntaId: respuesta.preguntaId,
+            respuestaTexto: respuesta.respuestaTexto || "",
+            opcionSeleccionada: respuesta.opcionSeleccionada || null,
+            respuestaAudioUrl: audioUrl, // ✅ Guardar la URL de audio correcta
+            estado: "realizado",
+          };
+        }),
+        estado: "realizado",
+        corregido: false,
+      };
+
+      // 📌 Guardar respuesta en la base de datos
+      examen.respuestas.push(nuevaRespuesta);
+      await examen.save();
+
+      res.status(200).json({ message: "Respuestas enviadas con éxito" });
+    } catch (error) {
+      console.error("❌ Error al enviar respuestas:", error);
+      res.status(500).json({ message: "Error interno del servidor" });
+    }
+  }
+);
+
+router.post(
+  "/:examenId/responder",
+  authenticate,
+  authorize(["alumno"]),
+  upload.array("archivoAudio", 10), // 📌 Permitir hasta 10 archivos de audio
+  async (req, res) => {
+    try {
+      console.log("🔹 Recibiendo solicitud para responder examen...");
+      console.log("🔹 Archivos recibidos:", req.files);
+      console.log("🔹 Cuerpo de la petición (req.body):", req.body);
+
+      const respuestas = JSON.parse(req.body.respuestas);
+      const archivosAudio = req.files || [];
+      const examen = await Examen.findById(req.params.examenId);
+
+      if (!examen) {
+        return res.status(404).json({ message: "Examen no encontrado" });
+      }
+
+      // 📌 Verificar si el alumno ya respondió el examen
       const yaRespondido = examen.respuestas.some(
         (resp) => resp.alumno.toString() === req.user.id
       );
@@ -195,74 +306,74 @@ router.post(
       }
 
       // 📌 Verificar fecha límite
-      if (new Date() > new Date(examen.fechaLimite)) {
+      if (new Date() > new Date(examen.fechaLimite).setHours(23, 59, 59, 999)) {
         return res.status(400).json({
           message:
             "La fecha límite ha pasado. No puedes completar este examen.",
         });
       }
 
-      let audioUrl = null;
-      if (archivoAudio) {
-        const fileKey = `examenes/${req.params.examenId}/${uuidv4()}-${
-          archivoAudio.originalname
-        }`;
-        const uploadParams = {
-          Bucket: "escuela-de-misiones",
-          Key: fileKey,
-          Body: archivoAudio.buffer,
-          ContentType: archivoAudio.mimetype,
-          ACL: "public-read",
-        };
+      // 📌 Subir archivos a Digital Ocean y mapear URLs
+      let audioUrls = {};
+      if (archivosAudio.length > 0) {
+        await Promise.all(
+          archivosAudio.map(async (archivo) => {
+            const fileKey = `examenes/${req.params.examenId}/${uuidv4()}-${
+              archivo.originalname
+            }`;
+            const uploadParams = {
+              Bucket: "escuela-de-misiones",
+              Key: fileKey,
+              Body: archivo.buffer,
+              ContentType: archivo.mimetype,
+              ACL: "public-read",
+            };
 
-        await s3.send(new PutObjectCommand(uploadParams));
-        audioUrl = `https://${uploadParams.Bucket}.nyc3.digitaloceanspaces.com/${fileKey}`;
+            await s3.send(new PutObjectCommand(uploadParams));
+
+            audioUrls[
+              archivo.originalname
+            ] = `https://${uploadParams.Bucket}.nyc3.digitaloceanspaces.com/${fileKey}`;
+          })
+        );
       }
 
-      // Guardamos las respuestas del alumno
+      console.log("🟢 URLs de los audios subidos:", audioUrls);
+
+      // 📌 Asociar respuestas con las URLs de audio correctas
       const nuevaRespuesta = {
         alumno: req.user.id,
-        respuestas: respuestas.map((respuesta) => ({
-          preguntaId: respuesta.preguntaId,
-          respuestaTexto: respuesta.respuestaTexto || "",
-          opcionSeleccionada: respuesta.opcionSeleccionada || null,
-          respuestaAudioUrl: respuesta.respuestaAudio ? audioUrl : null, // Guardar solo si es pregunta de audio
-        })),
-        corregido: false, // Se corregirá manualmente o con lógica automática después
+        respuestas: respuestas.map((respuesta) => {
+          let audioUrl = null;
+
+          // 📌 Buscar archivo correspondiente a la pregunta
+          const archivoAudio = archivosAudio.find(
+            (file) => file.originalname === `audio_${respuesta.preguntaId}.wav`
+          );
+
+          if (archivoAudio) {
+            audioUrl = audioUrls[archivoAudio.originalname] || null;
+          }
+
+          return {
+            preguntaId: respuesta.preguntaId,
+            respuestaTexto: respuesta.respuestaTexto || "",
+            opcionSeleccionada: respuesta.opcionSeleccionada || null,
+            respuestaAudioUrl: audioUrl, // ✅ Guardar la URL de audio correcta
+            estado: "pendiente",
+          };
+        }),
+        estado: "realizado",
+        corregido: false,
       };
 
+      // 📌 Guardar respuesta en la base de datos
       examen.respuestas.push(nuevaRespuesta);
       await examen.save();
 
       res.status(200).json({ message: "Respuestas enviadas con éxito" });
     } catch (error) {
-      console.error("Error al enviar respuestas:", error);
-      res.status(500).json({ message: "Error interno del servidor" });
-    }
-  }
-);
-
-// 📌 Verificar si un alumno ya ha completado un examen
-router.get(
-  "/:examenId/completado",
-  authenticate,
-  authorize(["alumno"]),
-  async (req, res) => {
-    try {
-      const examen = await Examen.findById(req.params.examenId);
-
-      if (!examen) {
-        return res.status(404).json({ message: "Examen no encontrado" });
-      }
-
-      // Verificar si el alumno ya respondió este examen
-      const yaRespondido = examen.respuestas.some(
-        (resp) => resp.alumno.toString() === req.user.id
-      );
-
-      res.status(200).json({ yaRespondido });
-    } catch (error) {
-      console.error("Error al verificar si el examen fue completado:", error);
+      console.error("❌ Error al enviar respuestas:", error);
       res.status(500).json({ message: "Error interno del servidor" });
     }
   }

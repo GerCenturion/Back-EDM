@@ -26,18 +26,19 @@ const ExamenSchema = new mongoose.Schema({
           respuestaAudioUrl: String,
           estado: {
             type: String,
-            enum: ["pendiente", "aprobado", "rehacer"],
+            enum: ["pendiente", "realizado", "aprobado", "rehacer"],
             default: "pendiente",
           },
         },
       ],
       estado: {
         type: String,
-        enum: ["pendiente", "aprobado", "rehacer"],
+        enum: ["pendiente", "realizado", "aprobado", "rehacer"],
         default: "pendiente",
       },
     },
   ],
+  fechaLimite: { type: Date, required: false },
   creadoEn: { type: Date, default: Date.now },
 });
 
