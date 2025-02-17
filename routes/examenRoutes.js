@@ -360,7 +360,7 @@ router.post(
             respuestaTexto: respuesta.respuestaTexto || "",
             opcionSeleccionada: respuesta.opcionSeleccionada || null,
             respuestaAudioUrl: audioUrl, // ✅ Guardar la URL de audio correcta
-            estado: "pendiente",
+            estado: "realizado",
           };
         }),
         estado: "realizado",
@@ -552,6 +552,165 @@ router.get(
     } catch (error) {
       console.error("❌ Error al obtener estado detallado del examen:", error);
       res.status(500).json({ message: "Error interno del servidor" });
+    }
+  }
+);
+
+// 📌 Obtener un examen para rehacer (solo las preguntas que deben corregirse)
+router.get(
+  "/:examenId/rehacer",
+  authenticate,
+  authorize(["alumno"]),
+  async (req, res) => {
+    try {
+      const examen = await Examen.findById(req.params.examenId)
+        .populate("materia", "name")
+        .populate("preguntas")
+        .lean();
+
+      if (!examen) {
+        return res.status(404).json({ message: "Examen no encontrado" });
+      }
+
+      // Buscar las respuestas del alumno en este examen
+      const respuestaAlumno = examen.respuestas.find(
+        (resp) => resp.alumno.toString() === req.user.id
+      );
+
+      if (!respuestaAlumno) {
+        return res
+          .status(404)
+          .json({ message: "No tienes respuestas para este examen." });
+      }
+
+      // Filtrar solo las preguntas que deben rehacerse
+      const preguntasRehacer = respuestaAlumno.respuestas
+        .filter((r) => r.estado === "rehacer")
+        .map((r) => {
+          const preguntaCompleta = examen.preguntas.find((p) =>
+            p._id.equals(r.preguntaId)
+          );
+          return preguntaCompleta
+            ? { ...preguntaCompleta, estado: "rehacer" }
+            : null;
+        })
+        .filter(Boolean);
+
+      if (preguntasRehacer.length === 0) {
+        return res.status(400).json({
+          message: "No tienes preguntas que necesiten ser rehechas.",
+        });
+      }
+
+      res.status(200).json({
+        examenId: examen._id,
+        titulo: examen.titulo,
+        materia: examen.materia,
+        preguntas: preguntasRehacer,
+      });
+    } catch (error) {
+      console.error("❌ Error al obtener examen para rehacer:", error);
+      res.status(500).json({ message: "Error interno del servidor" });
+    }
+  }
+);
+
+router.post(
+  "/:examenId/enviar-revision",
+  authenticate,
+  authorize(["alumno"]),
+  upload.array("archivoAudio", 10),
+  async (req, res) => {
+    try {
+      console.log("🔹 Recibiendo solicitud para enviar revisión...");
+      console.log("🔹 Archivos recibidos:", req.files);
+      console.log("🔹 Cuerpo de la petición (req.body):", req.body);
+
+      const respuestas = JSON.parse(req.body.respuestas);
+      console.log("🔹 Respuestas parseadas:", respuestas);
+
+      const archivosAudio = req.files || [];
+      const examen = await Examen.findById(req.params.examenId);
+      if (!examen) {
+        console.error("❌ Examen no encontrado.");
+        return res.status(404).json({ message: "Examen no encontrado" });
+      }
+
+      const respuestaAlumno = examen.respuestas.find(
+        (resp) => resp.alumno.toString() === req.user.id
+      );
+
+      if (!respuestaAlumno) {
+        console.error("❌ Respuestas del alumno no encontradas.");
+        return res
+          .status(404)
+          .json({ message: "No tienes respuestas previas en este examen." });
+      }
+
+      console.log(
+        "🟢 Ignorando fecha límite, permitiendo envío de correcciones."
+      );
+
+      let audioUrls = {};
+      if (archivosAudio.length > 0) {
+        await Promise.all(
+          archivosAudio.map(async (archivo) => {
+            const fileKey = `examenes/${req.params.examenId}/${uuidv4()}-${
+              archivo.originalname
+            }`;
+            const uploadParams = {
+              Bucket: "escuela-de-misiones",
+              Key: fileKey,
+              Body: archivo.buffer,
+              ContentType: archivo.mimetype,
+              ACL: "public-read",
+            };
+
+            await s3.send(new PutObjectCommand(uploadParams));
+            audioUrls[
+              archivo.originalname
+            ] = `https://${uploadParams.Bucket}.nyc3.digitaloceanspaces.com/${fileKey}`;
+          })
+        );
+      }
+
+      console.log("🟢 URLs de los audios subidos:", audioUrls);
+
+      respuestaAlumno.respuestas = respuestaAlumno.respuestas.map((r) => {
+        const nuevaRespuesta = respuestas.find(
+          (resp) => resp.preguntaId === r.preguntaId.toString()
+        );
+
+        if (!nuevaRespuesta) return r;
+
+        let audioUrl = r.respuestaAudioUrl;
+        const archivoAudio = archivosAudio.find(
+          (file) =>
+            file.originalname === `audio_${nuevaRespuesta.preguntaId}.wav`
+        );
+
+        if (archivoAudio) {
+          audioUrl = audioUrls[archivoAudio.originalname] || null;
+        }
+
+        return {
+          preguntaId: r.preguntaId,
+          respuestaTexto: nuevaRespuesta.respuestaTexto || r.respuestaTexto,
+          opcionSeleccionada:
+            nuevaRespuesta.opcionSeleccionada || r.opcionSeleccionada,
+          respuestaAudioUrl: audioUrl,
+          estado: "realizado",
+        };
+      });
+
+      respuestaAlumno.estado = "realizado";
+      await examen.save();
+
+      console.log("✅ Correcciones guardadas correctamente.");
+      res.status(200).json({ message: "Correcciones enviadas con éxito" });
+    } catch (error) {
+      console.error("❌ Error al enviar correcciones:", error);
+      res.status(500).json({ message: "Error interno del servidor", error });
     }
   }
 );
