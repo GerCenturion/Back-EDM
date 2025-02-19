@@ -484,72 +484,100 @@ router.put(
           .json({ message: "Esta materia ya está deshabilitada." });
       }
 
-      // 📌 Guardar notas en la libreta (con IDs)
+      // 📌 Guardar estado en la libreta
       for (let student of materia.students) {
         if (!student.student) continue;
 
         const examenes = await Examen.find({ materia: materia._id });
 
-        let totalNota = 0;
-        let cantidadExamenes = examenes.length;
-
-        examenes.forEach((examen) => {
+        // 📌 Determinar estado final: "aprobado" o "recursa"
+        let estadoFinal = "aprobado";
+        for (let examen of examenes) {
           const respuestaAlumno = examen.respuestas.find(
             (r) => r.alumno.toString() === student.student._id.toString()
           );
-          totalNota += respuestaAlumno ? respuestaAlumno.totalPuntuacion : 0;
-        });
 
-        const notaFinal =
-          cantidadExamenes > 0 ? totalNota / cantidadExamenes : 0;
+          if (
+            !respuestaAlumno ||
+            respuestaAlumno.estadoGeneral !== "aprobado"
+          ) {
+            estadoFinal = "recursa";
+            break;
+          }
+        }
 
         await Libreta.create({
-          alumno: student.student._id, // 🔹 Guardando ID en lugar del nombre
-          materia: materia._id, // 🔹 Guardando ID en lugar del nombre
-          profesor: materia.professor._id, // 🔹 Guardando ID en lugar del nombre
-          notaFinal,
+          alumno: student.student._id,
+          materia: materia._id,
+          profesor: materia.professor._id,
+          estadoFinal,
           fechaCierre: new Date(),
         });
       }
 
-      // 📌 Deshabilitar la materia (sin marcarla como cerrada)
+      // 📌 Deshabilitar la materia
       materia.isEnrollmentOpen = false;
       await materia.save();
 
-      // 📌 Eliminar todos los archivos de DigitalOcean antes de limpiar la BD
-      for (const file of materia.files) {
-        const fileName = file.fileUrl.split("/").pop(); // Extraer el nombre del archivo
-        const deleteParams = {
-          Bucket: "escuela-de-misiones",
-          Key: fileName,
-        };
-
-        try {
-          await s3.send(new DeleteObjectCommand(deleteParams));
+      // 📌 Eliminar todos los archivos y carpetas de DigitalOcean
+      try {
+        // 1️⃣ Eliminar archivos individuales de la materia
+        for (const file of materia.files) {
+          const fileName = file.fileUrl.split("/").pop();
+          await s3.send(
+            new DeleteObjectCommand({
+              Bucket: "escuela-de-misiones",
+              Key: fileName,
+            })
+          );
           console.log(`🗑 Archivo eliminado: ${fileName}`);
-        } catch (error) {
-          console.error(`❌ Error al eliminar archivo ${fileName}:`, error);
         }
+
+        // 2️⃣ Eliminar la carpeta de exámenes
+        const examenesFolder = `examenes/${materia._id}/`;
+        const listadoArchivos = await s3.send(
+          new ListObjectsV2Command({
+            Bucket: "escuela-de-misiones",
+            Prefix: examenesFolder,
+          })
+        );
+
+        if (listadoArchivos.Contents.length > 0) {
+          const archivosAEliminar = listadoArchivos.Contents.map((file) => ({
+            Key: file.Key,
+          }));
+
+          await s3.send(
+            new DeleteObjectsCommand({
+              Bucket: "escuela-de-misiones",
+              Delete: { Objects: archivosAEliminar },
+            })
+          );
+
+          console.log(`🗑 Carpeta de exámenes eliminada: ${examenesFolder}`);
+        }
+      } catch (error) {
+        console.error("❌ Error al eliminar archivos de DigitalOcean:", error);
       }
 
-      // 📌 Limpiar los archivos y videos de la base de datos
+      // 📌 Limpiar la base de datos
       materia.files = [];
       materia.videos = [];
       await materia.save();
 
-      // 📌 Eliminar todos los exámenes relacionados
+      // 📌 Eliminar todos los exámenes de la materia
       await Examen.deleteMany({ materia: materia._id });
 
-      // 📌 Eliminar a todos los estudiantes inscritos en la materia
+      // 📌 Eliminar todos los estudiantes inscritos
       materia.students = [];
       await materia.save();
 
       res.status(200).json({
         message:
-          "Materia deshabilitada, notas guardadas y archivos eliminados con éxito.",
+          "Materia deshabilitada, estados finales guardados y archivos eliminados con éxito.",
       });
     } catch (error) {
-      console.error("Error al cerrar materia:", error.message);
+      console.error("❌ Error al cerrar materia:", error.message);
       res.status(500).json({ message: "Error interno del servidor" });
     }
   }

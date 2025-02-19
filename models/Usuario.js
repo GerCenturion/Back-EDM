@@ -32,41 +32,33 @@ const UsuarioSchema = new mongoose.Schema({
       return !this.isDefaultAdmin;
     },
   },
-
   birthdate: {
-    type: Date,
-    required: function () {
-      return !this.isDefaultAdmin;
-    },
+    type: Date, // Ahora es opcional
   },
   dni: {
     type: String,
     required: [true, "El DNI es obligatorio"],
     unique: true,
   },
+  legajo: {
+    type: String,
+    default: "",
+  },
   address: {
     type: String,
-    required: function () {
-      return !this.isDefaultAdmin;
-    },
+    default: "",
   },
   civilStatus: {
     type: String,
-    required: function () {
-      return !this.isDefaultAdmin;
-    },
+    default: "",
   },
   profession: {
     type: String,
-    required: function () {
-      return !this.isDefaultAdmin;
-    },
+    default: "",
   },
   church: {
     type: String,
-    required: function () {
-      return !this.isDefaultAdmin;
-    },
+    default: "",
   },
   ministerialRole: {
     type: String,
@@ -74,9 +66,7 @@ const UsuarioSchema = new mongoose.Schema({
   },
   reason: {
     type: String,
-    required: function () {
-      return !this.isDefaultAdmin;
-    },
+    default: "",
   },
   password: {
     type: String,

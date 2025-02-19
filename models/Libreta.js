@@ -16,11 +16,10 @@ const LibretaSchema = new mongoose.Schema({
     ref: "Usuario",
     required: true,
   },
-  notaFinal: {
-    type: Number,
+  estadoFinal: {
+    type: String,
+    enum: ["aprobado", "recursa"],
     required: true,
-    min: 0,
-    max: 10,
   },
   fechaCierre: {
     type: Date,

@@ -12,7 +12,6 @@ const router = express.Router();
 // Configuración de Multer para subir archivos a la memoria
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 📌 10MB máximo por archivo
 });
 
 // Configuración de DigitalOcean Spaces
@@ -182,9 +181,17 @@ router.post(
   upload.array("archivoAudio", 10), // 📌 Permitir hasta 10 archivos de audio
   async (req, res) => {
     try {
+      console.log("🔹 Recibiendo solicitud para responder examen...");
+      console.log("🔹 Archivos recibidos:", req.files);
+      console.log("🔹 Cuerpo de la petición (req.body):", req.body);
       // 📌 Parsear respuestas y obtener archivos de audio subidos
       const respuestas = JSON.parse(req.body.respuestas);
-      const archivosAudio = req.files || [];
+      let archivosAudio = req.files || [];
+
+      archivosAudio = archivosAudio.filter(
+        (file) => file.mimetype === "audio/webm"
+      );
+
       const examen = await Examen.findById(req.params.examenId);
 
       if (!examen) {
@@ -214,9 +221,10 @@ router.post(
       if (archivosAudio.length > 0) {
         await Promise.all(
           archivosAudio.map(async (archivo) => {
-            const fileKey = `examenes/${req.params.examenId}/${uuidv4()}-${
-              archivo.originalname
-            }`;
+            const fileKey = `materias/${materiaId}/examenes/${
+              req.params.examenId
+            }/${uuidv4()}-${archivo.originalname}`;
+
             const uploadParams = {
               Bucket: "escuela-de-misiones",
               Key: fileKey,
@@ -245,110 +253,7 @@ router.post(
 
           // 📌 Buscar el archivo de audio correspondiente a la pregunta
           const archivoAudio = archivosAudio.find(
-            (file) => file.originalname === `audio_${respuesta.preguntaId}.wav`
-          );
-
-          if (archivoAudio) {
-            audioUrl = audioUrls[archivoAudio.originalname] || null;
-          }
-
-          return {
-            preguntaId: respuesta.preguntaId,
-            respuestaTexto: respuesta.respuestaTexto || "",
-            opcionSeleccionada: respuesta.opcionSeleccionada || null,
-            respuestaAudioUrl: audioUrl, // ✅ Guardar la URL de audio correcta
-            estado: "realizado",
-          };
-        }),
-        estado: "realizado",
-        corregido: false,
-      };
-
-      // 📌 Guardar respuesta en la base de datos
-      examen.respuestas.push(nuevaRespuesta);
-      await examen.save();
-
-      res.status(200).json({ message: "Respuestas enviadas con éxito" });
-    } catch (error) {
-      console.error("❌ Error al enviar respuestas:", error);
-      res.status(500).json({ message: "Error interno del servidor" });
-    }
-  }
-);
-
-router.post(
-  "/:examenId/responder",
-  authenticate,
-  authorize(["alumno"]),
-  upload.array("archivoAudio", 10), // 📌 Permitir hasta 10 archivos de audio
-  async (req, res) => {
-    try {
-      console.log("🔹 Recibiendo solicitud para responder examen...");
-      console.log("🔹 Archivos recibidos:", req.files);
-      console.log("🔹 Cuerpo de la petición (req.body):", req.body);
-
-      const respuestas = JSON.parse(req.body.respuestas);
-      const archivosAudio = req.files || [];
-      const examen = await Examen.findById(req.params.examenId);
-
-      if (!examen) {
-        return res.status(404).json({ message: "Examen no encontrado" });
-      }
-
-      // 📌 Verificar si el alumno ya respondió el examen
-      const yaRespondido = examen.respuestas.some(
-        (resp) => resp.alumno.toString() === req.user.id
-      );
-      if (yaRespondido) {
-        return res
-          .status(400)
-          .json({ message: "Ya has respondido este examen." });
-      }
-
-      // 📌 Verificar fecha límite
-      if (new Date() > new Date(examen.fechaLimite).setHours(23, 59, 59, 999)) {
-        return res.status(400).json({
-          message:
-            "La fecha límite ha pasado. No puedes completar este examen.",
-        });
-      }
-
-      // 📌 Subir archivos a Digital Ocean y mapear URLs
-      let audioUrls = {};
-      if (archivosAudio.length > 0) {
-        await Promise.all(
-          archivosAudio.map(async (archivo) => {
-            const fileKey = `examenes/${req.params.examenId}/${uuidv4()}-${
-              archivo.originalname
-            }`;
-            const uploadParams = {
-              Bucket: "escuela-de-misiones",
-              Key: fileKey,
-              Body: archivo.buffer,
-              ContentType: archivo.mimetype,
-              ACL: "public-read",
-            };
-
-            await s3.send(new PutObjectCommand(uploadParams));
-
-            audioUrls[
-              archivo.originalname
-            ] = `https://${uploadParams.Bucket}.nyc3.digitaloceanspaces.com/${fileKey}`;
-          })
-        );
-      }
-
-      console.log("🟢 URLs de los audios subidos:", audioUrls);
-
-      // 📌 Asociar respuestas con las URLs de audio correctas
-      const nuevaRespuesta = {
-        alumno: req.user.id,
-        respuestas: respuestas.map((respuesta) => {
-          let audioUrl = null;
-
-          // 📌 Buscar archivo correspondiente a la pregunta
-          const archivoAudio = archivosAudio.find(
-            (file) => file.originalname === `audio_${respuesta.preguntaId}.wav`
+            (file) => file.originalname === `audio_${respuesta.preguntaId}.webm`
           );
 
           if (archivoAudio) {
@@ -629,7 +534,11 @@ router.post(
       const respuestas = JSON.parse(req.body.respuestas);
       console.log("🔹 Respuestas parseadas:", respuestas);
 
-      const archivosAudio = req.files || [];
+      let archivosAudio = req.files || [];
+      archivosAudio = archivosAudio.filter(
+        (file) => file.mimetype === "audio/webm"
+      );
+
       const examen = await Examen.findById(req.params.examenId);
       if (!examen) {
         console.error("❌ Examen no encontrado.");
@@ -655,9 +564,10 @@ router.post(
       if (archivosAudio.length > 0) {
         await Promise.all(
           archivosAudio.map(async (archivo) => {
-            const fileKey = `examenes/${req.params.examenId}/${uuidv4()}-${
-              archivo.originalname
-            }`;
+            const fileKey = `materias/${materiaId}/examenes/${
+              req.params.examenId
+            }/${uuidv4()}-${archivo.originalname}`;
+
             const uploadParams = {
               Bucket: "escuela-de-misiones",
               Key: fileKey,
@@ -686,7 +596,7 @@ router.post(
         let audioUrl = r.respuestaAudioUrl;
         const archivoAudio = archivosAudio.find(
           (file) =>
-            file.originalname === `audio_${nuevaRespuesta.preguntaId}.wav`
+            file.originalname === `audio_${nuevaRespuesta.preguntaId}.webm`
         );
 
         if (archivoAudio) {

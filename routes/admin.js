@@ -1,5 +1,6 @@
 const express = require("express");
 const { authenticate, isAdmin } = require("../middleware/authenticate");
+const bcrypt = require("bcryptjs");
 const Usuario = require("../models/Usuario");
 
 const router = express.Router();
@@ -32,22 +33,30 @@ router.get("/usuarios/:id", authenticate, isAdmin, async (req, res) => {
 // Ruta para actualizar un usuario (solo admin)
 router.put("/usuarios/:id", authenticate, isAdmin, async (req, res) => {
   try {
-    const { name, email, role } = req.body;
+    const { name, email, role, legajo, phoneCode, phoneArea, phoneNumber } =
+      req.body;
 
+    // Buscar usuario en la base de datos
     const usuario = await Usuario.findById(req.params.id);
     if (!usuario) {
       return res.status(404).json({ message: "Usuario no encontrado" });
     }
 
-    usuario.name = name || usuario.name;
-    usuario.email = email || usuario.email;
-    usuario.role = role || usuario.role;
+    // Actualizar solo los campos que se proporcionan
+    if (name) usuario.name = name;
+    if (email) usuario.email = email;
+    if (role) usuario.role = role;
+    if (legajo) usuario.legajo = legajo;
+    if (phoneCode) usuario.phoneCode = phoneCode;
+    if (phoneArea) usuario.phoneArea = phoneArea;
+    if (phoneNumber) usuario.phoneNumber = phoneNumber;
 
     await usuario.save();
-    res.status(200).json({ message: "Usuario actualizado con éxito" });
+
+    res.status(200).json({ message: "✅ Usuario actualizado con éxito." });
   } catch (error) {
-    console.error("Error al actualizar usuario:", error.message);
-    res.status(500).json({ message: "Error interno del servidor" });
+    console.error("❌ Error al actualizar usuario:", error.message);
+    res.status(500).json({ message: "Error interno del servidor." });
   }
 });
 
@@ -65,6 +74,64 @@ router.delete("/usuarios/:id", authenticate, isAdmin, async (req, res) => {
   } catch (error) {
     console.error("Error al eliminar usuario:", error.message);
     res.status(500).json({ message: "Error interno del servidor" });
+  }
+});
+
+router.post("/usuarios", authenticate, isAdmin, async (req, res) => {
+  try {
+    const {
+      name,
+      email,
+      role,
+      legajo,
+      phoneCode,
+      phoneArea,
+      phoneNumber,
+      dni,
+      password,
+    } = req.body;
+
+    // Validar campos requeridos
+    if (!name || !email || !role || !dni || !password) {
+      return res
+        .status(400)
+        .json({ message: "Todos los campos obligatorios deben completarse." });
+    }
+
+    // Verificar si el usuario ya existe por email o DNI
+    const usuarioExistente = await Usuario.findOne({
+      $or: [{ email }, { dni }],
+    });
+
+    if (usuarioExistente) {
+      return res
+        .status(400)
+        .json({ message: "El email o DNI ya están registrados." });
+    }
+
+    // Encriptar la contraseña antes de guardarla
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Crear el nuevo usuario
+    const nuevoUsuario = new Usuario({
+      name,
+      email,
+      role,
+      legajo: legajo || "",
+      phoneCode: phoneCode || "",
+      phoneArea: phoneArea || "",
+      phoneNumber: phoneNumber || "",
+      dni,
+      password: hashedPassword,
+    });
+
+    await nuevoUsuario.save();
+
+    res.status(201).json({ message: "✅ Usuario creado con éxito." });
+  } catch (error) {
+    console.error("❌ Error al crear usuario:", error.message);
+    res.status(500).json({ message: "Error interno del servidor." });
   }
 });
 
