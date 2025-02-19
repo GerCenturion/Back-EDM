@@ -5,7 +5,13 @@ const Usuario = require("../models/Usuario");
 const Libreta = require("../models/Libreta");
 const Examen = require("../models/Examen");
 const router = express.Router();
-const { S3Client, DeleteObjectCommand } = require("@aws-sdk/client-s3");
+const {
+  S3Client,
+  ListObjectsV2Command,
+  DeleteObjectCommand,
+  DeleteObjectsCommand,
+} = require("@aws-sdk/client-s3");
+
 require("dotenv").config();
 
 // 📌 Configuración del cliente S3 para DigitalOcean Spaces
@@ -519,7 +525,7 @@ router.put(
       materia.isEnrollmentOpen = false;
       await materia.save();
 
-      // 📌 Eliminar todos los archivos y carpetas de DigitalOcean
+      // 📌 Eliminar archivos y carpetas de DigitalOcean
       try {
         // 1️⃣ Eliminar archivos individuales de la materia
         for (const file of materia.files) {
@@ -533,8 +539,8 @@ router.put(
           console.log(`🗑 Archivo eliminado: ${fileName}`);
         }
 
-        // 2️⃣ Eliminar la carpeta de exámenes
-        const examenesFolder = `examenes/${materia._id}/`;
+        // 2️⃣ Eliminar la carpeta de exámenes de la materia
+        const examenesFolder = `materias/${materia._id}/examenes/`;
         const listadoArchivos = await s3.send(
           new ListObjectsV2Command({
             Bucket: "escuela-de-misiones",
@@ -542,7 +548,7 @@ router.put(
           })
         );
 
-        if (listadoArchivos.Contents.length > 0) {
+        if (listadoArchivos.Contents && listadoArchivos.Contents.length > 0) {
           const archivosAEliminar = listadoArchivos.Contents.map((file) => ({
             Key: file.Key,
           }));

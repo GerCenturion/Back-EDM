@@ -198,6 +198,8 @@ router.post(
         return res.status(404).json({ message: "Examen no encontrado" });
       }
 
+      const materiaId = examen.materia.toString();
+
       // 📌 Verificar si el alumno ya respondió el examen
       const yaRespondido = examen.respuestas.some(
         (resp) => resp.alumno.toString() === req.user.id
@@ -559,6 +561,8 @@ router.post(
       console.log(
         "🟢 Ignorando fecha límite, permitiendo envío de correcciones."
       );
+
+      const materiaId = examen.materia.toString();
 
       let audioUrls = {};
       if (archivosAudio.length > 0) {
