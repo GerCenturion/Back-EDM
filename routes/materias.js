@@ -494,31 +494,78 @@ router.put(
       for (let student of materia.students) {
         if (!student.student) continue;
 
+        // 🔥 Verificar si el alumno está en status "Aceptado"
+        if (student.status !== "Aceptado") {
+          console.log(
+            `🔴 ${student.student.name} no está en status Aceptado. Se omite del cálculo.`
+          );
+          continue;
+        }
+
+        // 📌 Obtener todos los exámenes de la materia
         const examenes = await Examen.find({ materia: materia._id });
 
         // 📌 Determinar estado final: "aprobado" o "recursa"
         let estadoFinal = "aprobado";
+
+        // ✅ Recorrer todos los exámenes y verificar sus estados
         for (let examen of examenes) {
           const respuestaAlumno = examen.respuestas.find(
             (r) => r.alumno.toString() === student.student._id.toString()
           );
 
-          if (
-            !respuestaAlumno ||
-            respuestaAlumno.estadoGeneral !== "aprobado"
-          ) {
+          console.log(
+            `🔎 Analizando respuesta de ${student.student.name} en el examen ${examen._id}:`,
+            respuestaAlumno
+          );
+
+          // 🔥 Si no hay respuesta o alguna respuesta es "rehacer", recursa
+          if (!respuestaAlumno) {
+            console.log(
+              `❌ ${student.student.name} recursa por no responder el examen ${examen._id}`
+            );
+            estadoFinal = "recursa";
+            break;
+          }
+
+          const respuestas = respuestaAlumno.respuestas;
+          const todasAprobadas = respuestas.every(
+            (respuesta) => respuesta.estado === "aprobado"
+          );
+          const algunaParaRehacer = respuestas.some(
+            (respuesta) => respuesta.estado === "rehacer"
+          );
+
+          if (!todasAprobadas || algunaParaRehacer) {
+            console.log(
+              `❌ ${student.student.name} recursa por el examen ${examen._id} con respuestas:`,
+              respuestas
+            );
             estadoFinal = "recursa";
             break;
           }
         }
 
-        await Libreta.create({
-          alumno: student.student._id,
-          materia: materia._id,
-          profesor: materia.professor._id,
-          estadoFinal,
-          fechaCierre: new Date(),
-        });
+        // ✅ Buscar en la libreta y actualizar si existe, o crear uno nuevo
+        const libretaActualizada = await Libreta.findOneAndUpdate(
+          {
+            alumno: student.student._id,
+            materia: materia._id,
+          },
+          {
+            profesor: materia.professor._id,
+            estadoFinal,
+            fechaCierre: new Date(),
+          },
+          {
+            new: true, // 🔥 Retorna el documento actualizado
+            upsert: true, // 🔥 Crea uno nuevo si no existe
+          }
+        );
+
+        console.log(
+          `📘 Estado final para ${student.student.name}: ${estadoFinal}`
+        );
       }
 
       // 📌 Deshabilitar la materia
@@ -569,6 +616,9 @@ router.put(
       // 📌 Limpiar la base de datos
       materia.files = [];
       materia.videos = [];
+      materia.professor = null;
+      materia.examenes = [];
+
       await materia.save();
 
       // 📌 Eliminar todos los exámenes de la materia
