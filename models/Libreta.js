@@ -6,6 +6,10 @@ const LibretaSchema = new mongoose.Schema({
     ref: "Usuario",
     required: true,
   },
+  legajo: {
+    type: String,
+    default: "",
+  },
   materia: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Materia",
@@ -20,6 +24,14 @@ const LibretaSchema = new mongoose.Schema({
     type: String,
     enum: ["aprobado", "recursa"],
     required: true,
+  },
+  recibo: {
+    type: String,
+    default: "",
+  },
+  fechaDePago: {
+    type: Date,
+    default: null,
   },
   fechaCierre: {
     type: Date,

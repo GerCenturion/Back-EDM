@@ -31,13 +31,56 @@ router.get(
   async (req, res) => {
     try {
       const libretas = await Libreta.find()
-        .populate("alumno", "name email")
-        .populate("materia", "name level")
-        .populate("profesor", "name");
+        .populate("alumno", "name legajo") // 🔥 Traer nombre y legajo
+        .populate("materia", "name level") // 🔥 Traer nombre y nivel de la materia
+        .populate("profesor", "name"); // 🔥 Traer solo el nombre del profesor
 
-      res.status(200).json(libretas);
+      res.status(200).json(
+        libretas.map((entry) => ({
+          _id: entry._id,
+          alumno: {
+            name: entry.alumno?.name || "Sin nombre",
+            legajo: entry.alumno?.legajo || "No registrado",
+          },
+          materia: {
+            name: entry.materia?.name || "Sin materia",
+            level: entry.materia?.level || "Sin nivel",
+          },
+          profesor: entry.profesor?.name || "Sin profesor",
+          estadoFinal: entry.estadoFinal,
+          fechaCierre: entry.fechaCierre,
+          recibo: entry.recibo || "No registrado",
+          fechaDePago: entry.fechaDePago || null, // Si no hay fecha, devolver `null`
+        }))
+      );
     } catch (error) {
-      console.error("Error al obtener las libretas:", error.message);
+      console.error("❌ Error al obtener las libretas:", error.message);
+      res.status(500).json({ message: "Error interno del servidor" });
+    }
+  }
+);
+
+router.put(
+  "/registropagos/:id",
+  authenticate,
+  authorize(["admin", "profesor"]),
+  async (req, res) => {
+    try {
+      const { recibo, fechaDePago } = req.body;
+
+      const libretaActualizada = await Libreta.findByIdAndUpdate(
+        req.params.id,
+        { recibo, fechaDePago },
+        { new: true }
+      );
+
+      if (!libretaActualizada) {
+        return res.status(404).json({ message: "Libreta no encontrada" });
+      }
+
+      res.status(200).json(libretaActualizada);
+    } catch (error) {
+      console.error("Error al actualizar la libreta:", error);
       res.status(500).json({ message: "Error interno del servidor" });
     }
   }
@@ -51,9 +94,27 @@ router.get(
     try {
       const libreta = await Libreta.find({ alumno: req.params.alumnoId })
         .populate("materia", "name level")
-        .populate("profesor", "name");
+        .populate("profesor", "name")
+        .populate("alumno", "name legajo"); // 🔥 Traer legajo del alumno
 
-      res.status(200).json(libreta);
+      res.status(200).json(
+        libreta.map((entry) => ({
+          _id: entry._id,
+          alumno: {
+            name: entry.alumno.name,
+            legajo: entry.alumno.legajo || "No registrado",
+          },
+          materia: {
+            name: entry.materia.name,
+            level: entry.materia.level,
+          },
+          profesor: entry.profesor.name,
+          estadoFinal: entry.estadoFinal,
+          fechaCierre: entry.fechaCierre,
+          recibo: entry.recibo || "No registrado",
+          fechaDePago: entry.fechaDePago || "No registrado",
+        }))
+      );
     } catch (error) {
       console.error("Error al obtener la libreta:", error.message);
       res.status(500).json({ message: "Error interno del servidor" });
@@ -556,6 +617,7 @@ router.put(
             profesor: materia.professor._id,
             estadoFinal,
             fechaCierre: new Date(),
+            ...(student.student.legajo && { legajo: student.student.legajo }),
           },
           {
             new: true, // 🔥 Retorna el documento actualizado
@@ -662,5 +724,43 @@ router.get("/:id", authenticate, async (req, res) => {
     res.status(500).json({ message: "Error interno del servidor" });
   }
 });
+
+router.post(
+  "/manual",
+  authenticate,
+  authorize(["admin", "profesor"]),
+  async (req, res) => {
+    try {
+      const { alumno, materia, estadoFinal, recibo, fechaDePago } = req.body;
+
+      if (!alumno || !materia || !estadoFinal) {
+        return res.status(400).json({ message: "Datos incompletos" });
+      }
+
+      const profesor = await Materia.findById(materia).select("professor");
+
+      if (!profesor) {
+        return res.status(404).json({ message: "Materia no encontrada" });
+      }
+
+      const libretaActualizada = await Libreta.findOneAndUpdate(
+        { alumno, materia },
+        {
+          profesor: profesor.professor,
+          estadoFinal,
+          recibo,
+          fechaDePago,
+          fechaCierre: new Date(),
+        },
+        { new: true, upsert: true }
+      );
+
+      res.status(200).json(libretaActualizada);
+    } catch (error) {
+      console.error("Error al guardar la libreta manualmente:", error);
+      res.status(500).json({ message: "Error interno del servidor" });
+    }
+  }
+);
 
 module.exports = router;
