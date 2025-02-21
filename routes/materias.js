@@ -31,14 +31,15 @@ router.get(
   async (req, res) => {
     try {
       const libretas = await Libreta.find()
-        .populate("alumno", "name legajo") // 🔥 Traer nombre y legajo
-        .populate("materia", "name level") // 🔥 Traer nombre y nivel de la materia
-        .populate("profesor", "name"); // 🔥 Traer solo el nombre del profesor
+        .populate("alumno", "name legajo _id") // 🔥 Trae `_id`, `name` y `legajo`
+        .populate("materia", "name level") // 🔥 Trae `name` y `level` de la materia
+        .populate("profesor", "name"); // 🔥 Trae solo el `name` del profesor
 
       res.status(200).json(
         libretas.map((entry) => ({
           _id: entry._id,
           alumno: {
+            _id: entry.alumno?._id, // ✅ Incluye `_id` del alumno
             name: entry.alumno?.name || "Sin nombre",
             legajo: entry.alumno?.legajo || "No registrado",
           },
@@ -50,7 +51,7 @@ router.get(
           estadoFinal: entry.estadoFinal,
           fechaCierre: entry.fechaCierre,
           recibo: entry.recibo || "No registrado",
-          fechaDePago: entry.fechaDePago || null, // Si no hay fecha, devolver `null`
+          fechaDePago: entry.fechaDePago || null, // ✅ Devuelve `null` si no hay fecha
         }))
       );
     } catch (error) {
@@ -89,7 +90,7 @@ router.put(
 router.get(
   "/libreta/:alumnoId",
   authenticate,
-  authorize(["alumno"]),
+  authorize(["admin", "profesor", "alumno"]),
   async (req, res) => {
     try {
       const libreta = await Libreta.find({ alumno: req.params.alumnoId })
