@@ -96,29 +96,39 @@ router.get(
       const libreta = await Libreta.find({ alumno: req.params.alumnoId })
         .populate("materia", "name level")
         .populate("profesor", "name")
-        .populate("alumno", "name legajo"); // 🔥 Traer legajo del alumno
+        .populate("alumno", "name legajo");
 
+      // 🔥 Verifica si hay datos
+      if (!libreta || libreta.length === 0) {
+        return res
+          .status(404)
+          .json({ message: "No se encontraron registros para este alumno." });
+      }
+
+      // ✅ Manejar datos con encadenamiento opcional
       res.status(200).json(
         libreta.map((entry) => ({
           _id: entry._id,
           alumno: {
-            name: entry.alumno.name,
-            legajo: entry.alumno.legajo || "No registrado",
+            name: entry.alumno?.name || "Sin nombre",
+            legajo: entry.alumno?.legajo || "No registrado",
           },
           materia: {
-            name: entry.materia.name,
-            level: entry.materia.level,
+            name: entry.materia?.name || "Materia no registrada",
+            level: entry.materia?.level || "Nivel no especificado",
           },
-          profesor: entry.profesor.name,
-          estadoFinal: entry.estadoFinal,
-          fechaCierre: entry.fechaCierre,
+          profesor: entry.profesor?.name || "Sin profesor asignado",
+          estadoFinal: entry.estadoFinal || "No especificado",
+          fechaCierre: entry.fechaCierre || "Fecha no registrada",
           recibo: entry.recibo || "No registrado",
           fechaDePago: entry.fechaDePago || "No registrado",
         }))
       );
     } catch (error) {
       console.error("Error al obtener la libreta:", error.message);
-      res.status(500).json({ message: "Error interno del servidor" });
+      res
+        .status(500)
+        .json({ message: "Error interno del servidor", error: error.message });
     }
   }
 );

@@ -318,7 +318,7 @@ router.post("/recuperar", async (req, res) => {
 
     // Enviar código por WhatsApp
     const chatId = `${usuario.phoneCode}9${usuario.phoneArea}${usuario.phoneNumber}@c.us`;
-    const mensaje = `🔑 *Código de recuperación:* ${recoveryCode}\n\nIngresa este código en la plataforma para restablecer tu contraseña.`;
+    const mensaje = ` *Bienvenido/a ${usuario.name}*\n\n*🔑Código de recuperación:* ${recoveryCode}\n\nIngresa este código en la plataforma para restablecer tu contraseña.`;
 
     try {
       await whatsapp.sendMessage(chatId, mensaje);
