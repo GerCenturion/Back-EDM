@@ -33,7 +33,7 @@ router.get("/usuarios/:id", authenticate, isAdmin, async (req, res) => {
 // Ruta para actualizar un usuario (solo admin)
 router.put("/usuarios/:id", authenticate, isAdmin, async (req, res) => {
   try {
-    const { name, email, role, legajo, phoneCode, phoneArea, phoneNumber } =
+    const { name, dni, role, legajo, phoneCode, phoneArea, phoneNumber } =
       req.body;
 
     // Buscar usuario en la base de datos
@@ -44,7 +44,7 @@ router.put("/usuarios/:id", authenticate, isAdmin, async (req, res) => {
 
     // Actualizar solo los campos que se proporcionan
     if (name) usuario.name = name;
-    if (email) usuario.email = email;
+    if (dni) usuario.email = dni;
     if (role) usuario.role = role;
     if (legajo) usuario.legajo = legajo;
     if (phoneCode) usuario.phoneCode = phoneCode;
@@ -81,7 +81,6 @@ router.post("/usuarios", authenticate, isAdmin, async (req, res) => {
   try {
     const {
       name,
-      email,
       role,
       legajo,
       phoneCode,
@@ -92,7 +91,7 @@ router.post("/usuarios", authenticate, isAdmin, async (req, res) => {
     } = req.body;
 
     // Validar campos requeridos
-    if (!name || !email || !role || !dni || !password) {
+    if (!name || !role || !dni || !password) {
       return res
         .status(400)
         .json({ message: "Todos los campos obligatorios deben completarse." });
@@ -100,7 +99,7 @@ router.post("/usuarios", authenticate, isAdmin, async (req, res) => {
 
     // Verificar si el usuario ya existe por email o DNI
     const usuarioExistente = await Usuario.findOne({
-      $or: [{ email }, { dni }],
+      $or: [{ dni }],
     });
 
     if (usuarioExistente) {
@@ -116,7 +115,6 @@ router.post("/usuarios", authenticate, isAdmin, async (req, res) => {
     // Crear el nuevo usuario
     const nuevoUsuario = new Usuario({
       name,
-      email,
       role,
       legajo: legajo || "",
       phoneCode: phoneCode || "",
