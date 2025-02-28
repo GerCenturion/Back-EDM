@@ -4,6 +4,7 @@ const Materia = require("../models/Materia");
 const Usuario = require("../models/Usuario");
 const Libreta = require("../models/Libreta");
 const Examen = require("../models/Examen");
+const { whatsapp } = require("../config/whatsapp");
 const router = express.Router();
 const {
   S3Client,
@@ -23,6 +24,22 @@ const s3 = new S3Client({
     secretAccessKey: process.env.DO_SPACES_SECRET_KEY,
   },
 });
+
+// 📌 Función para enviar mensajes de WhatsApp
+const sendWhatsAppMessage = async (chatId, mensaje) => {
+  try {
+    const number_details = await whatsapp.getNumberId(chatId);
+    if (number_details) {
+      await whatsapp.sendMessage(chatId, mensaje);
+      console.log(`✅ Mensaje enviado a ${chatId}`);
+    } else {
+      console.log(`❌ El número ${chatId} no está registrado en WhatsApp.`);
+    }
+  } catch (error) {
+    console.error("❌ Error al enviar mensaje de WhatsApp:", error);
+  }
+};
+
 // 📌 ✅ RUTA PARA OBTENER TODAS LAS LIBRETAS
 router.get(
   "/libretas",
@@ -400,6 +417,27 @@ router.post("/solicitar-inscripcion/:id", authenticate, async (req, res) => {
         .json({ message: "Ya has solicitado inscripción en esta materia" });
     }
 
+    // Obtener el usuario que solicita la inscripción
+    const alumno = await Usuario.findById(req.user.id);
+
+    // Obtener todos los administradores
+    const administradores = await Usuario.find({ role: "admin" });
+
+    // Enviar mensaje de WhatsApp a los administradores
+    for (const admin of administradores) {
+      if (admin.phoneCode && admin.phoneArea && admin.phoneNumber) {
+        // Formatear el número como en el ejemplo funcional
+        const chatId = `${admin.phoneCode}9${admin.phoneArea}${admin.phoneNumber}@c.us`;
+        const mensaje = `🔔 Nueva solicitud de inscripción:\n\nAlumno: ${alumno.name}\nMateria: ${materia.name}\n\nPor favor, revisar en el sistema.`;
+
+        // Utilizar la función reutilizable para enviar mensaje
+        await sendWhatsAppMessage(chatId, mensaje);
+      } else {
+        console.log(
+          `❌ El administrador ${admin.name} no tiene número de teléfono válido.`
+        );
+      }
+    }
     materia.students.push({ student: req.user.id, status: "Pendiente" });
     await materia.save();
 
