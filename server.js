@@ -11,6 +11,7 @@ const uploadRoutes = require("./routes/uploadRoutes");
 const examenRoutes = require("./routes/examenRoutes");
 const crearMateriasDefault = require("./config/materiasDefault");
 const whatsappRoutes = require("./routes/whatsapp"); // 🔥 Agregar WhatsApp
+const youtubeRoutes = require("./routes/youtube");
 
 dotenv.config();
 
@@ -32,6 +33,7 @@ app.use("/api/materias", materiasRoutes);
 app.use("/api/uploads", uploadRoutes);
 app.use("/api/examenes", examenRoutes);
 app.use("/api/whatsapp", whatsappRoutes); // 🔥 Integrar WhatsApp API
+app.use("/api/youtube", youtubeRoutes);
 
 app.get("/", (req, res) => {
   res.send("API funcionando");
