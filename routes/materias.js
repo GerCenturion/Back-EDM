@@ -774,42 +774,76 @@ router.get("/:id", authenticate, async (req, res) => {
   }
 });
 
-router.post(
-  "/manual",
-  authenticate,
-  authorize(["admin", "profesor"]),
-  async (req, res) => {
-    try {
-      const { alumno, materia, estadoFinal, recibo, fechaDePago } = req.body;
+// ✅ BACKEND ACTUALIZADO (RUTAS)
 
-      if (!alumno || !materia || !estadoFinal) {
-        return res.status(400).json({ message: "Datos incompletos" });
+// ✅ RUTA PUT COMPLETA PARA EDITAR LIBRETA (CREA SI NO EXISTE)
+router.put("/libreta/:id", authenticate, authorize(["admin"]), async (req, res) => {
+  try {
+    const { alumno, materia, estadoFinal, fechaCierre, fechaDePago, recibo } = req.body;
+
+    let libreta = await Libreta.findById(req.params.id);
+
+    if (!libreta) {
+      // Evitar crear si no hay datos relevantes
+      if (!estadoFinal && !fechaCierre && !fechaDePago && !recibo) {
+        return res.status(400).json({ message: "No se proporcionaron datos para crear la libreta" });
       }
-
-      const profesor = await Materia.findById(materia).select("professor");
-
-      if (!profesor) {
-        return res.status(404).json({ message: "Materia no encontrada" });
-      }
-
-      const libretaActualizada = await Libreta.findOneAndUpdate(
-        { alumno, materia },
-        {
-          profesor: profesor.professor,
-          estadoFinal,
-          recibo,
-          fechaDePago,
-          fechaCierre: new Date(),
-        },
-        { new: true, upsert: true }
-      );
-
-      res.status(200).json(libretaActualizada);
-    } catch (error) {
-      console.error("Error al guardar la libreta manualmente:", error);
-      res.status(500).json({ message: "Error interno del servidor" });
+      libreta = new Libreta({ alumno, materia });
     }
+
+    if (estadoFinal !== undefined) libreta.estadoFinal = estadoFinal;
+    if (fechaCierre !== undefined) libreta.fechaCierre = fechaCierre;
+    if (fechaDePago !== undefined) libreta.fechaDePago = fechaDePago;
+    if (recibo !== undefined) libreta.recibo = recibo;
+    if (!libreta.profesor) libreta.profesor = req.user._id;
+
+    await libreta.save();
+    res.status(200).json({ message: "Libreta actualizada con éxito", libreta });
+  } catch (error) {
+    console.error("Error al actualizar libreta:", error);
+    res.status(500).json({ message: "Error interno del servidor" });
   }
-);
+});
+
+// ✅ RUTA POST /manual QUE ACTUALIZA O CREA LA LIBRETA
+router.post("/manual", authenticate, authorize(["admin", "profesor"]), async (req, res) => {
+  try {
+    const { alumno, materia, estadoFinal, recibo, fechaDePago, fechaCierre } = req.body;
+
+    if (!alumno || !materia) {
+      return res.status(400).json({ message: "Datos incompletos" });
+    }
+
+    const profesor = await Materia.findById(materia).select("professor");
+    if (!profesor) return res.status(404).json({ message: "Materia no encontrada" });
+
+    const existing = await Libreta.findOne({ alumno, materia });
+
+    const updatedFields = {
+      profesor: profesor.professor,
+    };
+    if (estadoFinal !== undefined) updatedFields.estadoFinal = estadoFinal;
+    if (recibo !== undefined) updatedFields.recibo = recibo;
+    if (fechaDePago !== undefined) updatedFields.fechaDePago = fechaDePago;
+    if (fechaCierre !== undefined) updatedFields.fechaCierre = fechaCierre;
+
+    // Solo crear nueva libreta si se proporciona al menos un dato relevante
+    const shouldCreate = estadoFinal || fechaCierre || fechaDePago || recibo;
+    if (!existing && !shouldCreate) {
+      return res.status(400).json({ message: "No se proporcionaron datos para crear la libreta" });
+    }
+
+    const libretaActualizada = await Libreta.findOneAndUpdate(
+      { alumno, materia },
+      updatedFields,
+      { new: true, upsert: true }
+    );
+
+    res.status(200).json(libretaActualizada);
+  } catch (error) {
+    console.error("Error al guardar la libreta manualmente:", error);
+    res.status(500).json({ message: "Error interno del servidor" });
+  }
+});
 
 module.exports = router;

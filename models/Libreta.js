@@ -18,7 +18,7 @@ const LibretaSchema = new mongoose.Schema({
   profesor: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Usuario",
-    required: true,
+    required: false,
   },
   estadoFinal: {
     type: String,
