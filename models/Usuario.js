@@ -9,6 +9,7 @@ const UsuarioSchema = new mongoose.Schema({
     type: String,
     default: "",
     unique: true,
+    sparse: true, // ✅ Permite múltiples vacíos sin conflicto
   },
   profileImage: {
     type: String, // Guardaremos la URL de la imagen en la base de datos

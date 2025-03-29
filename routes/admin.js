@@ -98,32 +98,29 @@ router.post("/usuarios", authenticate, isAdmin, async (req, res) => {
     }
 
     // Verificar si el usuario ya existe por email o DNI
-    const usuarioExistente = await Usuario.findOne({
-      $or: [{ dni }],
-    });
+const usuarioExistente = await Usuario.findOne({
+  $or: [{ dni }],
+});
 
-    if (usuarioExistente) {
-      return res
-        .status(400)
-        .json({ message: "El email o DNI ya están registrados." });
-    }
-
+if (usuarioExistente) {
+  return res.status(400).json({ message: "El DNI ya está registrado." });
+}
     // Encriptar la contraseña antes de guardarla
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
     // Crear el nuevo usuario
-    const nuevoUsuario = new Usuario({
-      name,
-      role,
-      legajo: legajo || "",
-      phoneCode: phoneCode || "",
-      phoneArea: phoneArea || "",
-      phoneNumber: phoneNumber || "",
-      dni,
-      password: hashedPassword,
-    });
-
+const nuevoUsuario = new Usuario({
+  name,
+  role,
+  legajo: legajo || "",
+  phoneCode: phoneCode || "",
+  phoneArea: phoneArea || "",
+  phoneNumber: phoneNumber || "",
+  dni,
+  email: `${dni}@noemail.com`, // ✅ Email único basado en DNI
+  password: hashedPassword,
+});
     await nuevoUsuario.save();
 
     res.status(201).json({ message: "✅ Usuario creado con éxito." });
