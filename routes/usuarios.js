@@ -297,7 +297,6 @@ router.put("/cambiar-contrasena", authenticate, async (req, res) => {
   }
 });
 
-// 📌 Enviar código de recuperación de contraseña
 router.post("/recuperar", async (req, res) => {
   try {
     const { dni } = req.body;
@@ -310,34 +309,41 @@ router.post("/recuperar", async (req, res) => {
       return res.status(404).json({ message: "Usuario no encontrado" });
     }
 
-    // Generar un código de 6 dígitos y expiración
+    // Generar código y expiración
     const recoveryCode = crypto.randomInt(100000, 999999).toString();
     usuario.verificationCode = recoveryCode;
-    usuario.verificationCodeExpires = Date.now() + 2 * 60 * 60 * 1000; // 2 horas
+    usuario.verificationCodeExpires = Date.now() + 2 * 60 * 60 * 1000;
     await usuario.save();
 
-    // Enviar código por WhatsApp
+    // Preparar mensaje
     const chatId = `${usuario.phoneCode}9${usuario.phoneArea}${usuario.phoneNumber}@c.us`;
     const mensaje = ` *Bienvenido/a ${usuario.name}*\n\n*🔑Código de recuperación:* ${recoveryCode}\n\nIngresa este código en la plataforma para restablecer tu contraseña.`;
 
     try {
-      await whatsapp.sendMessage(chatId, mensaje);
+      const number_details = await whatsapp.getNumberId(chatId);
+      if (!number_details) {
+        console.warn(`⚠️ El número ${chatId} no está registrado en WhatsApp.`);
+      }
+
+      await whatsapp.sendMessage(chatId, mensaje).catch((err) => {
+        console.warn("⚠️ Advertencia interna al enviar mensaje:", err.message);
+      });
+
       console.log(`✅ Código de recuperación enviado a ${chatId}`);
     } catch (error) {
-      console.error("❌ Error al enviar código de recuperación:", error);
-      return res
-        .status(500)
-        .json({ message: "Error al enviar código por WhatsApp." });
+      console.warn("⚠️ Error no bloqueante al enviar mensaje:", error.message);
     }
 
-    res
-      .status(200)
-      .json({ message: "📩 Código de recuperación enviado por WhatsApp." });
+    // Siempre responder, incluso si falló internamente
+    return res.status(200).json({
+      message: "📩 Código de recuperación enviado (o intentado).",
+    });
   } catch (error) {
-    console.error("Error en recuperación de contraseña:", error.message);
-    res.status(500).json({ message: "Error interno del servidor" });
+    console.error("❌ Error en recuperación de contraseña:", error.message);
+    return res.status(500).json({ message: "Error interno del servidor" });
   }
 });
+
 
 // 📌 Verificar código y restablecer contraseña
 router.post("/restablecer", async (req, res) => {
