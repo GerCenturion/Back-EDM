@@ -23,7 +23,7 @@ const LibretaSchema = new mongoose.Schema({
   estadoFinal: {
     type: String,
     enum: ["aprobado", "recursa"],
-    required: true,
+    required: false,
   },
   recibo: {
     type: String,
